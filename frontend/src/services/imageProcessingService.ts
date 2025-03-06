@@ -348,20 +348,21 @@ class ImageProcessingService {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
+        // First create a canvas for cropping
+        const cropCanvas = document.createElement('canvas');
+        const cropCtx = cropCanvas.getContext('2d');
         
-        if (!ctx) {
+        if (!cropCtx) {
           resolve(imageData);
           return;
         }
         
         // Set canvas size to crop dimensions
-        canvas.width = cropArea.width;
-        canvas.height = cropArea.height;
+        cropCanvas.width = cropArea.width;
+        cropCanvas.height = cropArea.height;
         
         // Draw the cropped portion of the image
-        ctx.drawImage(
+        cropCtx.drawImage(
           img,
           cropArea.x,
           cropArea.y,
@@ -369,11 +370,42 @@ class ImageProcessingService {
           cropArea.height,
           0,
           0,
-          cropArea.width,
-          cropArea.height
+          cropCanvas.width,
+          cropCanvas.height
         );
         
-        resolve(canvas.toDataURL('image/png'));
+        // Now create a second canvas for resizing to standard dimensions
+        // Standard dimensions for ID photo (35mm × 45mm at 300 DPI)
+        // 35mm = 413 pixels, 45mm = 531 pixels at 300 DPI
+        const standardWidth = Math.round(35 * 300 / 25.4); // 25.4mm = 1 inch
+        const standardHeight = Math.round(45 * 300 / 25.4);
+        
+        const resizeCanvas = document.createElement('canvas');
+        const resizeCtx = resizeCanvas.getContext('2d');
+        
+        if (!resizeCtx) {
+          resolve(cropCanvas.toDataURL('image/png'));
+          return;
+        }
+        
+        // Set canvas to standard dimensions
+        resizeCanvas.width = standardWidth;
+        resizeCanvas.height = standardHeight;
+        
+        // Draw and resize the cropped image to standard dimensions
+        resizeCtx.drawImage(
+          cropCanvas,
+          0,
+          0,
+          cropCanvas.width,
+          cropCanvas.height,
+          0,
+          0,
+          standardWidth,
+          standardHeight
+        );
+        
+        resolve(resizeCanvas.toDataURL('image/png'));
       };
       
       img.src = imageData;

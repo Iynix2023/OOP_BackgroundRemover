@@ -220,6 +220,8 @@ const ProcessPage: React.FC = () => {
               <ImageCropper 
                 imageUrl={uploadedImage} 
                 onCropComplete={handleCropComplete} 
+                aspectRatio={35/45}  
+                lockAspectRatio={true} 
               />
             )}
             <p className="mt-4 text-sm text-gray-500">

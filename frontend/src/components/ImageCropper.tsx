@@ -6,6 +6,7 @@ interface ImageCropperProps {
   imageUrl: string;
   onCropComplete: (croppedArea: CropArea) => void;
   aspectRatio?: number;
+  lockAspectRatio?: boolean;
 }
 
 const ImageCropper: React.FC<ImageCropperProps> = ({ 
