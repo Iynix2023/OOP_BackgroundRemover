@@ -412,6 +412,85 @@ class ImageProcessingService {
       img.src = imageData;
     });
   }
+  // Batch processing
+  async startBatchProcessing(
+    files: File[],
+    background: BackgroundOptions,
+    clothes: ClothesOptions,
+    enhanceOptions: EnhanceOptions,
+    exportFormat: string,
+    exportSize: string
+  ): Promise<{ batchId: string }> {
+    const formData = new FormData();
+    
+    // Add all files
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+    
+    // Add processing parameters
+    formData.append('backgroundType', background.type);
+    formData.append('backgroundValue', background.value);
+    formData.append('clothesType', clothes.type);
+    formData.append('clothesColor', clothes.color);
+    formData.append('brightness', enhanceOptions.brightness.toString());
+    formData.append('contrast', enhanceOptions.contrast.toString());
+    formData.append('saturation', enhanceOptions.saturation.toString());
+    formData.append('smoothing', enhanceOptions.smoothing.toString());
+    formData.append('exportFormat', exportFormat);
+    formData.append('exportSize', exportSize);
+    
+    const response = await fetch('http://localhost:8080/api/batch/process', {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to start batch processing');
+    }
+    
+    return await response.json();
+  }
+
+async getBatchStatus(batchId: string): Promise<{
+  batchId: string;
+  totalImages: number;
+  processedCount: number;
+  completed: boolean;
+  images: Array<{
+    index: number;
+    originalName: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    error?: string;
+  }>;
+}> {
+  const response = await fetch(`http://localhost:8080/api/batch/status/${batchId}`);
+  
+  if (!response.ok) {
+    throw new Error('Failed to get batch status');
+  }
+  
+  return await response.json();
+}
+
+async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
+  const response = await fetch(`http://localhost:8080/api/batch/result/${batchId}/${imageIndex}`);
+  
+  if (!response.ok) {
+    throw new Error('Failed to get processed image');
+  }
+  
+  const result = await response.json();
+  
+  // Convert byte array to base64 string
+  const byteArray = new Uint8Array(result.processedImage);
+  let binary = '';
+  byteArray.forEach(byte => {
+    binary += String.fromCharCode(byte);
+  });
+  
+  return 'data:image/jpeg;base64,' + btoa(binary);
+}
   
   // Check if the photo meets compliance requirements
   checkCompliance(imageData: string): Promise<ComplianceResult> {
