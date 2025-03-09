@@ -480,16 +480,11 @@ async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
     throw new Error('Failed to get processed image');
   }
   
-  const result = await response.json();
+  // Get the image as a blob directly
+  const blob = await response.blob();
   
-  // Convert byte array to base64 string
-  const byteArray = new Uint8Array(result.processedImage);
-  let binary = '';
-  byteArray.forEach(byte => {
-    binary += String.fromCharCode(byte);
-  });
-  
-  return 'data:image/jpeg;base64,' + btoa(binary);
+  // Create a URL for the blob
+  return URL.createObjectURL(blob);
 }
   
   // Check if the photo meets compliance requirements

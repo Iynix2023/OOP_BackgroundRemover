@@ -179,21 +179,29 @@ const startProcessing = async () => {
   }
 };
 
-  const downloadAllImages = () => {
-    // Create a zip file with all processed images
-    // For simplicity, we'll just download them one by one
-    uploadedImages.forEach((image, index) => {
-      if (image.processed && image.status === 'completed') {
-        const link = document.createElement('a');
+const downloadAllImages = () => {
+  // Create a zip file with all processed images
+  // For simplicity, we'll just download them one by one
+  uploadedImages.forEach((image, index) => {
+    if (image.processed && image.status === 'completed') {
+      const link = document.createElement('a');
+      
+      // If it's a blob URL
+      if (image.processed.startsWith('blob:')) {
         link.href = image.processed;
-        link.download = `processed-image-${index + 1}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+      } 
+      // If it's a data URL
+      else {
+        link.href = image.processed;
       }
-    });
-  };
-
+      
+      link.download = `processed-image-${index + 1}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  });
+};
   return (
     <div className="flex flex-col min-h-screen">
       <Header />

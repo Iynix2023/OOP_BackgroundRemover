@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import org.springframework.http.MediaType;
 
 @SpringBootApplication
 @EnableAsync
@@ -89,7 +90,7 @@ public class BatchProcessingApplication {
     }
     
     @GetMapping("/api/batch/result/{batchId}/{imageIndex}")
-    public ResponseEntity<ProcessedImage> getProcessedImage(
+    public ResponseEntity<?> getProcessedImage(
             @PathVariable String batchId, 
             @PathVariable int imageIndex) {
         
@@ -98,9 +99,14 @@ public class BatchProcessingApplication {
             return ResponseEntity.notFound().build();
         }
         
-        return ResponseEntity.ok(results.get(imageIndex));
+        ProcessedImage result = results.get(imageIndex);
+        
+        // Return image as a byte array with the correct content type
+        return ResponseEntity
+            .ok()
+            .contentType(MediaType.IMAGE_JPEG) // Or determine dynamically based on file type
+            .body(result.getProcessedImage());
     }
-    
     // Async processing method
     @Async
     public void processImagesAsync(String batchId, List<MultipartFile> files, 
