@@ -1,0 +1,5 @@
+com\example\oop\oop\OopApplication.class
+com\example\oop\oop\service\CropService.class
+com\example\oop\oop\service\BackgroundService.class
+com\example\oop\oop\service\ExportService.class
+com\example\oop\oop\service\photoupload.class
