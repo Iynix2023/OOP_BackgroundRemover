@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -15,15 +16,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import org.springframework.http.MediaType;
 
-@SpringBootApplication
+@Service
 @EnableAsync
 @RestController
 @CrossOrigin("*") // Allow all origins for testing
 public class BatchProcessingApplication {
 
-    public static void main(String[] args) {
-        SpringApplication.run(BatchProcessingApplication.class, args);
-    }
 
     // Async configuration
     @Bean
