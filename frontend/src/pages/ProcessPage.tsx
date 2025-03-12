@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { ArrowLeft, ArrowRight, Save, Undo, Redo, Check } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
@@ -12,6 +12,7 @@ import { BackgroundOptions, ClothesOptions, CropArea, EnhanceOptions, Compliance
 import imageProcessingService from '../services/imageProcessingService';
 
 const ProcessPage: React.FC = () => {
+  const debounceTimer = useRef<number | null>(null);
   const [step, setStep] = useState<number>(1);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [processedImage, setProcessedImage] = useState<string | null>(null);
@@ -125,24 +126,52 @@ const ProcessPage: React.FC = () => {
   };
 
   const handleEnhanceChange = async (options: EnhanceOptions) => {
+    // Update UI state immediately
     setEnhanceOptions(options);
     
     if (!processedImage) return;
     
+    // For reset, bypass debouncing
+    const isReset = options.brightness === 0 && 
+                   options.contrast === 0 && 
+                   options.saturation === 0 && 
+                   options.smoothing === 0;
+                   
+    if (debounceTimer.current !== null && !isReset) {
+      window.clearTimeout(debounceTimer.current);
+    }
+    
+    // Set processing state
     setIsProcessing(true);
-    try {
-      const newImage = await imageProcessingService.enhanceImage(processedImage, options);
-      setProcessedImage(newImage);
-      
-      // Add to history
-      const newHistory = history.slice(0, historyIndex + 1);
-      newHistory.push(newImage);
-      setHistory(newHistory);
-      setHistoryIndex(newHistory.length - 1);
-    } catch (error) {
-      console.error('Error enhancing image:', error);
-    } finally {
-      setIsProcessing(false);
+    
+    // For reset, process immediately without debounce
+    const processImage = async () => {
+      try {
+        console.log("Processing with options:", options);
+        const newImage = await imageProcessingService.enhanceImage(processedImage, options);
+        console.log("Processing complete");
+        
+        setProcessedImage(newImage);
+        
+        // Add to history
+        const newHistory = history.slice(0, historyIndex + 1);
+        newHistory.push(newImage);
+        setHistory(newHistory);
+        setHistoryIndex(newHistory.length - 1);
+      } catch (error) {
+        console.error('Error enhancing image:', error);
+      } finally {
+        setIsProcessing(false);
+        debounceTimer.current = null;
+      }
+    };
+    
+    if (isReset) {
+      // Process reset immediately
+      processImage();
+    } else {
+      // Use debouncing for regular adjustments
+      debounceTimer.current = window.setTimeout(processImage, 300);
     }
   };
 
@@ -220,6 +249,8 @@ const ProcessPage: React.FC = () => {
               <ImageCropper 
                 imageUrl={uploadedImage} 
                 onCropComplete={handleCropComplete} 
+                aspectRatio={35/45}  
+                lockAspectRatio={true} 
               />
             )}
             <p className="mt-4 text-sm text-gray-500">

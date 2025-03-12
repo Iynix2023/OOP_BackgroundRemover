@@ -225,99 +225,95 @@ class ImageProcessingService {
         // Draw the original image
         ctx.drawImage(img, 0, 0);
         
-        // Apply filters based on enhancement options
-        const brightness = options.brightness / 100;
-        const contrast = options.contrast / 100;
-        const saturation = options.saturation / 100;
-        const smoothing = options.smoothing / 100;
-        
         // Get image data for processing
         const imageDataObj = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageDataObj.data;
         
-        // Apply brightness and contrast
+        // Handle options more carefully
+        // Convert slider values to usable ranges
+        const brightnessAdjust = options.brightness / 100; // -0.5 to 0.5
+        const contrastAdjust = 1 + options.contrast / 100; // 0.5 to 1.5
+        const saturationAdjust = 1 + options.saturation / 100; // 0.5 to 1.5
+        const smoothingAdjust = options.smoothing / 100; // 0 to 1
+        
+        // Process each pixel
         for (let i = 0; i < data.length; i += 4) {
-          // Brightness
-          data[i] = Math.min(255, Math.max(0, data[i] + brightness * 255));
-          data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + brightness * 255));
-          data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + brightness * 255));
+          // Get original RGB values
+          let r = data[i];
+          let g = data[i + 1];
+          let b = data[i + 2];
           
-          // Contrast
-          data[i] = Math.min(255, Math.max(0, (data[i] - 128) * (1 + contrast) + 128));
-          data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] - 128) * (1 + contrast) + 128));
-          data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] - 128) * (1 + contrast) + 128));
+          // Apply brightness
+          r += brightnessAdjust * 255;
+          g += brightnessAdjust * 255;
+          b += brightnessAdjust * 255;
           
-          // Saturation (convert to HSL, adjust S, convert back)
-          const r = data[i] / 255;
-          const g = data[i + 1] / 255;
-          const b = data[i + 2] / 255;
+          // Apply contrast
+          const factor = (259 * (contrastAdjust * 100 + 255)) / (255 * (259 - contrastAdjust * 100));
+          r = factor * (r - 128) + 128;
+          g = factor * (g - 128) + 128;
+          b = factor * (b - 128) + 128;
           
-          const max = Math.max(r, g, b);
-          const min = Math.min(r, g, b);
-          let h, s, l = (max + min) / 2;
+          // Apply saturation
+          const avg = (r + g + b) / 3;
+          r = avg + saturationAdjust * (r - avg);
+          g = avg + saturationAdjust * (g - avg);
+          b = avg + saturationAdjust * (b - avg);
           
-          if (max === min) {
-            h = s = 0; // achromatic
-          } else {
-            const d = max - min;
-            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-            
-            switch (max) {
-              case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-              case g: h = (b - r) / d + 2; break;
-              case b: h = (r - g) / d + 4; break;
-              default: h = 0;
-            }
-            
-            h /= 6;
-          }
-          
-          // Adjust saturation
-          s = Math.min(1, Math.max(0, s * (1 + saturation)));
-          
-          // Convert back to RGB
-          if (s === 0) {
-            data[i] = data[i + 1] = data[i + 2] = l * 255;
-          } else {
-            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
-            const p = 2 * l - q;
-            
-            data[i] = this.hue2rgb(p, q, h + 1/3) * 255;
-            data[i + 1] = this.hue2rgb(p, q, h) * 255;
-            data[i + 2] = this.hue2rgb(p, q, h - 1/3) * 255;
-          }
+          // Clamp values to valid range
+          data[i] = Math.max(0, Math.min(255, Math.round(r)));
+          data[i + 1] = Math.max(0, Math.min(255, Math.round(g)));
+          data[i + 2] = Math.max(0, Math.min(255, Math.round(b)));
+          // Alpha remains unchanged
         }
         
-        // Apply skin smoothing (simple blur for skin tones)
-        if (smoothing > 0) {
-          // This is a simplified version - real apps would use more sophisticated algorithms
-          const tempData = new Uint8ClampedArray(data);
+        // Apply skin smoothing if needed
+        if (smoothingAdjust > 0) {
+          // Create a copy of the processed data
+          const smoothedData = new Uint8ClampedArray(data);
           
+          // Simple box blur for skin tones
           for (let y = 1; y < canvas.height - 1; y++) {
             for (let x = 1; x < canvas.width - 1; x++) {
               const idx = (y * canvas.width + x) * 4;
               
-              // Check if pixel is likely skin tone (simplified)
+              // Simple skin detection (adjust as needed)
               const r = data[idx];
               const g = data[idx + 1];
               const b = data[idx + 2];
               
-              // Simple skin detection
-              if (r > 60 && g > 40 && b > 20 && r > g && r > b && r - g > 15) {
-                // Apply blur for skin pixels
+              // Check if pixel is likely skin
+              if (r > 60 && g > 40 && b > 20 && r > g && r > b) {
+                // Apply box blur to skin pixels
                 for (let c = 0; c < 3; c++) {
                   let sum = 0;
+                  let count = 0;
+                  
+                  // Sample 3x3 neighborhood
                   for (let dy = -1; dy <= 1; dy++) {
                     for (let dx = -1; dx <= 1; dx++) {
-                      const srcIdx = ((y + dy) * canvas.width + (x + dx)) * 4 + c;
-                      sum += tempData[srcIdx];
+                      const nx = x + dx;
+                      const ny = y + dy;
+                      
+                      if (nx >= 0 && nx < canvas.width && ny >= 0 && ny < canvas.height) {
+                        const neighborIdx = (ny * canvas.width + nx) * 4 + c;
+                        sum += data[neighborIdx];
+                        count++;
+                      }
                     }
                   }
-                  // Weighted average based on smoothing amount
-                  data[idx + c] = Math.floor(data[idx + c] * (1 - smoothing) + (sum / 9) * smoothing);
+                  
+                  // Blend original with smoothed value
+                  const blendedValue = (1 - smoothingAdjust) * data[idx + c] + smoothingAdjust * (sum / count);
+                  smoothedData[idx + c] = Math.max(0, Math.min(255, Math.round(blendedValue)));
                 }
               }
             }
+          }
+          
+          // Replace data with smoothed version
+          for (let i = 0; i < data.length; i++) {
+            data[i] = smoothedData[i];
           }
         }
         
@@ -328,6 +324,11 @@ class ImageProcessingService {
       
       img.src = imageData;
     });
+  }
+  
+  // Helper function to clamp values between 0-255
+  private clamp(value: number): number {
+    return Math.max(0, Math.min(255, Math.round(value)));
   }
   
   // Helper function for HSL to RGB conversion
@@ -348,20 +349,21 @@ class ImageProcessingService {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
+        // First create a canvas for cropping
+        const cropCanvas = document.createElement('canvas');
+        const cropCtx = cropCanvas.getContext('2d');
         
-        if (!ctx) {
+        if (!cropCtx) {
           resolve(imageData);
           return;
         }
         
         // Set canvas size to crop dimensions
-        canvas.width = cropArea.width;
-        canvas.height = cropArea.height;
+        cropCanvas.width = cropArea.width;
+        cropCanvas.height = cropArea.height;
         
         // Draw the cropped portion of the image
-        ctx.drawImage(
+        cropCtx.drawImage(
           img,
           cropArea.x,
           cropArea.y,
@@ -369,16 +371,121 @@ class ImageProcessingService {
           cropArea.height,
           0,
           0,
-          cropArea.width,
-          cropArea.height
+          cropCanvas.width,
+          cropCanvas.height
         );
         
-        resolve(canvas.toDataURL('image/png'));
+        // Now create a second canvas for resizing to standard dimensions
+        // Standard dimensions for ID photo (35mm × 45mm at 300 DPI)
+        // 35mm = 413 pixels, 45mm = 531 pixels at 300 DPI
+        const standardWidth = Math.round(35 * 300 / 25.4); // 25.4mm = 1 inch
+        const standardHeight = Math.round(45 * 300 / 25.4);
+        
+        const resizeCanvas = document.createElement('canvas');
+        const resizeCtx = resizeCanvas.getContext('2d');
+        
+        if (!resizeCtx) {
+          resolve(cropCanvas.toDataURL('image/png'));
+          return;
+        }
+        
+        // Set canvas to standard dimensions
+        resizeCanvas.width = standardWidth;
+        resizeCanvas.height = standardHeight;
+        
+        // Draw and resize the cropped image to standard dimensions
+        resizeCtx.drawImage(
+          cropCanvas,
+          0,
+          0,
+          cropCanvas.width,
+          cropCanvas.height,
+          0,
+          0,
+          standardWidth,
+          standardHeight
+        );
+        
+        resolve(resizeCanvas.toDataURL('image/png'));
       };
       
       img.src = imageData;
     });
   }
+  // Batch processing
+  async startBatchProcessing(
+    files: File[],
+    background: BackgroundOptions,
+    clothes: ClothesOptions,
+    enhanceOptions: EnhanceOptions,
+    exportFormat: string,
+    exportSize: string
+  ): Promise<{ batchId: string }> {
+    const formData = new FormData();
+    
+    // Add all files
+    files.forEach(file => {
+      formData.append('files', file);
+    });
+    
+    // Add processing parameters
+    formData.append('backgroundType', background.type);
+    formData.append('backgroundValue', background.value);
+    formData.append('clothesType', clothes.type);
+    formData.append('clothesColor', clothes.color);
+    formData.append('brightness', enhanceOptions.brightness.toString());
+    formData.append('contrast', enhanceOptions.contrast.toString());
+    formData.append('saturation', enhanceOptions.saturation.toString());
+    formData.append('smoothing', enhanceOptions.smoothing.toString());
+    formData.append('exportFormat', exportFormat);
+    formData.append('exportSize', exportSize);
+    
+    const response = await fetch('http://localhost:8080/api/batch/process', {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to start batch processing');
+    }
+    
+    return await response.json();
+  }
+
+async getBatchStatus(batchId: string): Promise<{
+  batchId: string;
+  totalImages: number;
+  processedCount: number;
+  completed: boolean;
+  images: Array<{
+    index: number;
+    originalName: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    error?: string;
+  }>;
+}> {
+  const response = await fetch(`http://localhost:8080/api/batch/status/${batchId}`);
+  
+  if (!response.ok) {
+    throw new Error('Failed to get batch status');
+  }
+  
+  return await response.json();
+}
+
+async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
+  const response = await fetch(`http://localhost:8080/api/batch/result/${batchId}/${imageIndex}`);
+  
+  if (!response.ok) {
+    throw new Error('Failed to get processed image');
+  }
+  
+  // Get the image as a blob directly
+  const blob = await response.blob();
+  
+  // Create a URL for the blob
+  return URL.createObjectURL(blob);
+}
   
   // Check if the photo meets compliance requirements
   checkCompliance(imageData: string): Promise<ComplianceResult> {

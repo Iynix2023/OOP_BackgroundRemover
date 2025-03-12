@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, Settings, Play, Download, Trash2 } from 'lucide-react';
+import { Upload, Settings, Play, Download, Trash2, Check, X } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import ImageUploader from '../components/ImageUploader';
@@ -72,70 +72,136 @@ const BatchPage: React.FC = () => {
     setUploadedImages(newImages);
   };
 
-  const startProcessing = async () => {
-    if (uploadedImages.length === 0 || isProcessing) return;
+// Update the startProcessing function in BatchPage.tsx
+
+const startProcessing = async () => {
+  if (uploadedImages.length === 0 || isProcessing) return;
+  
+  setIsProcessing(true);
+  setProcessedCount(0);
+  
+  try {
+    // Convert data URLs to File objects
+    const files = await Promise.all(
+      uploadedImages.map(async (img, index) => {
+        // For data URLs that start with "data:image/jpeg;base64," or similar
+        const dataUrlParts = img.original.split(',');
+        const mimeMatch = dataUrlParts[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+        const byteString = atob(dataUrlParts[1]);
+        const arrayBuffer = new ArrayBuffer(byteString.length);
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        for (let i = 0; i < byteString.length; i++) {
+          uint8Array[i] = byteString.charCodeAt(i);
+        }
+        
+        const blob = new Blob([arrayBuffer], { type: mime });
+        return new File([blob], `image-${index}.${mime.split('/')[1]}`, { type: mime });
+      })
+    );
     
-    setIsProcessing(true);
-    setProcessedCount(0);
+    // Start batch processing
+    const result = await imageProcessingService.startBatchProcessing(
+      files,
+      background,
+      clothes,
+      enhanceOptions,
+      exportFormat,
+      exportSize
+    );
     
-    // Create a copy of the images array to update during processing
-    const updatedImages = [...uploadedImages].map(img => ({
+    const batchId = result.batchId;
+    
+    // Set all images to "processing" status
+    const processingImages = uploadedImages.map(img => ({
       ...img,
-      status: 'pending' as const
+      status: 'processing' as const
     }));
+    setUploadedImages(processingImages);
     
-    // Process each image sequentially
-    for (let i = 0; i < updatedImages.length; i++) {
+    // Poll for status updates
+    const pollInterval = setInterval(async () => {
       try {
-        // Update status to processing
-        updatedImages[i].status = 'processing';
-        setUploadedImages([...updatedImages]);
+        const status = await imageProcessingService.getBatchStatus(batchId);
         
-        // Process the image through each step
-        let processedImage = updatedImages[i].original;
+        // Update processed count
+        setProcessedCount(status.processedCount);
         
-        // 1. Apply background removal
-        processedImage = await imageProcessingService.removeBackground(processedImage, background);
+        // Update image statuses
+        const updatedImages = [...processingImages];
         
-        // 2. Apply clothes replacement
-        processedImage = await imageProcessingService.replaceClothes(processedImage, clothes);
+        let allCompleted = true;
+        for (let i = 0; i < status.images.length; i++) {
+          const imgInfo = status.images[i];
+          
+          if (i < updatedImages.length) {
+            updatedImages[i].status = imgInfo.status as any;
+            
+            if (imgInfo.error) {
+              updatedImages[i].error = imgInfo.error;
+            }
+            
+            // If this image is completed but we don't have the processed version yet
+            if (imgInfo.status === 'completed' && !updatedImages[i].processed) {
+              try {
+                const processedImageData = await imageProcessingService.getProcessedImage(batchId, i);
+                updatedImages[i].processed = processedImageData;
+              } catch (e) {
+                console.error(`Error getting processed image ${i}:`, e);
+              }
+            }
+            
+            // Check if this image is still in progress
+            if (imgInfo.status !== 'completed' && imgInfo.status !== 'failed') {
+              allCompleted = false;
+            }
+          }
+        }
         
-        // 3. Apply enhancements
-        processedImage = await imageProcessingService.enhanceImage(processedImage, enhanceOptions);
+        setUploadedImages(updatedImages);
         
-        // Update the processed image
-        updatedImages[i].processed = processedImage;
-        updatedImages[i].status = 'completed';
-        
-        // Update the processed count and images array
-        setProcessedCount(prevCount => prevCount + 1);
-        setUploadedImages([...updatedImages]);
+        // If all images are processed, stop polling
+        if (status.completed || allCompleted) {
+          clearInterval(pollInterval);
+          setIsProcessing(false);
+        }
       } catch (error) {
-        console.error(`Error processing image ${i}:`, error);
-        updatedImages[i].status = 'failed';
-        updatedImages[i].error = 'Processing failed';
-        setUploadedImages([...updatedImages]);
+        console.error('Error checking batch status:', error);
+        clearInterval(pollInterval);
+        setIsProcessing(false);
       }
-    }
+    }, 2000); // Check every 2 seconds
     
+  } catch (error) {
+    console.error('Error starting batch processing:', error);
     setIsProcessing(false);
-  };
+  }
+};
 
-  const downloadAllImages = () => {
-    // Create a zip file with all processed images
-    // For simplicity, we'll just download them one by one
-    uploadedImages.forEach((image, index) => {
-      if (image.processed && image.status === 'completed') {
-        const link = document.createElement('a');
+const downloadAllImages = () => {
+  // Create a zip file with all processed images
+  // For simplicity, we'll just download them one by one
+  uploadedImages.forEach((image, index) => {
+    if (image.processed && image.status === 'completed') {
+      const link = document.createElement('a');
+      
+      // If it's a blob URL
+      if (image.processed.startsWith('blob:')) {
         link.href = image.processed;
-        link.download = `processed-image-${index + 1}.png`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+      } 
+      // If it's a data URL
+      else {
+        link.href = image.processed;
       }
-    });
-  };
-
+      
+      link.download = `processed-image-${index + 1}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  });
+};
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
