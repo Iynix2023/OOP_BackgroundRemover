@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { ArrowLeft, ArrowRight, Save, Undo, Redo, Check } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
@@ -34,6 +34,9 @@ const ProcessPage: React.FC = () => {
   // History for undo/redo
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
+
+  // Add this state variable to store the original pre-enhancement image
+  const [preEnhancementImage, setPreEnhancementImage] = useState<string | null>(null);
 
   const handleImageUpload = (files: File[]) => {
     if (files.length > 0) {
@@ -125,39 +128,58 @@ const ProcessPage: React.FC = () => {
     }
   };
 
+  // Modify the step change logic to capture the image before enhancement
+  useEffect(() => {
+    if (step === 3 && processedImage && !preEnhancementImage) {
+      // Store the image right before entering the enhancement step
+      setPreEnhancementImage(processedImage);
+    }
+  }, [step, processedImage]);
+
+  // Modify your handleEnhanceChange function
   const handleEnhanceChange = async (options: EnhanceOptions) => {
     // Update UI state immediately
     setEnhanceOptions(options);
     
-    if (!processedImage) return;
+    // Use preEnhancementImage instead of processedImage
+    if (!preEnhancementImage) return;
     
-    // For reset, bypass debouncing
+    // Rest of your function remains the same, but use preEnhancementImage
     const isReset = options.brightness === 0 && 
                    options.contrast === 0 && 
                    options.saturation === 0 && 
                    options.smoothing === 0;
                    
-    if (debounceTimer.current !== null && !isReset) {
+    if (debounceTimer.current !== null) {
       window.clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
     }
     
-    // Set processing state
-    setIsProcessing(true);
-    
-    // For reset, process immediately without debounce
     const processImage = async () => {
+      setIsProcessing(true);
+      
       try {
         console.log("Processing with options:", options);
-        const newImage = await imageProcessingService.enhanceImage(processedImage, options);
-        console.log("Processing complete");
         
-        setProcessedImage(newImage);
+        const cleanOptions = {
+          brightness: options.brightness,
+          contrast: options.contrast,
+          saturation: options.saturation,
+          smoothing: options.smoothing
+        };
         
-        // Add to history
-        const newHistory = history.slice(0, historyIndex + 1);
-        newHistory.push(newImage);
-        setHistory(newHistory);
-        setHistoryIndex(newHistory.length - 1);
+        // Use preEnhancementImage here instead of processedImage
+        const newImage = await imageProcessingService.enhanceImage(preEnhancementImage, cleanOptions);
+        
+        if (newImage) {
+          setProcessedImage(newImage);
+          
+          // Add to history
+          const newHistory = history.slice(0, historyIndex + 1);
+          newHistory.push(newImage);
+          setHistory(newHistory);
+          setHistoryIndex(newHistory.length - 1);
+        }
       } catch (error) {
         console.error('Error enhancing image:', error);
       } finally {
@@ -166,9 +188,21 @@ const ProcessPage: React.FC = () => {
       }
     };
     
-    if (isReset) {
-      // Process reset immediately
-      processImage();
+    if (isReset && preEnhancementImage) {
+      // For reset, just use the original pre-enhancement image
+      setProcessedImage(preEnhancementImage);
+      
+      // Add to history
+      const newHistory = history.slice(0, historyIndex + 1);
+      newHistory.push(preEnhancementImage);
+      setHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+      
+      // Clear the timer since we're not actually making a request
+      if (debounceTimer.current !== null) {
+        window.clearTimeout(debounceTimer.current);
+        debounceTimer.current = null;
+      }
     } else {
       // Use debouncing for regular adjustments
       debounceTimer.current = window.setTimeout(processImage, 300);

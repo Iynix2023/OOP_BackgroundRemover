@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { EnhanceOptions } from '../types';
 
 interface EnhancementControlsProps {
@@ -10,48 +10,41 @@ const EnhancementControls: React.FC<EnhancementControlsProps> = ({
   options, 
   onChange 
 }) => {
-  // Handle changes with debouncing to prevent too many updates
-  const handleChange = (property: keyof EnhanceOptions, value: number) => {
-    // Create a new object to ensure React detects the change
+  // Use debounced change handler to prevent too many updates
+  const handleChange = useCallback((property: keyof EnhanceOptions, value: number) => {
+    // Include a timestamp to ensure each change is treated as unique
     const newOptions = {
       ...options,
-      [property]: value
+      [property]: value,
+      _timestamp: Date.now() // This forces the parent to treat the object as new
     };
     onChange(newOptions);
-  };
+  }, [options, onChange]);
 
   // Reset all values to default
-// In EnhancementControls.tsx
-const handleReset = () => {
-  // Create a new object to ensure React detects the change
-  const resetValues = { 
-    brightness: 0, 
-    contrast: 0, 
-    saturation: 0, 
-    smoothing: 0 
-  };
-  
-  // Directly call onChange with the reset values
-  onChange(resetValues);
-  
-  // You might want to add a small delay to ensure UI updates first
-  setTimeout(() => {
-    // Force a re-processing if needed
-    onChange({...resetValues});
-  }, 10);
-};
+  const handleReset = useCallback(() => {
+    const resetValues = { 
+      brightness: 0, 
+      contrast: 0, 
+      saturation: 0, 
+      smoothing: 0,
+      _timestamp: Date.now() // This ensures reset is treated as a new change
+    };
+    onChange(resetValues);
+  }, [onChange]);
 
   // Apply auto-enhance preset
-  const handleAutoEnhance = () => {
-    // Conservative auto-enhance values
+  const handleAutoEnhance = useCallback(() => {
     const enhancedValues = { 
       brightness: 5, 
       contrast: 10, 
       saturation: 5, 
-      smoothing: 20 
+      smoothing: 20,
+      _timestamp: Date.now() // This ensures auto-enhance is treated as a new change
     };
     onChange(enhancedValues);
-  };
+  }, [onChange]);
+
 
   return (
     <div className="space-y-4 border rounded-lg p-4 bg-white">
