@@ -2,17 +2,38 @@
 
 A Java-based image processing system using OpenCV for background removal, batch processing, and automatic clothes replacement. Supports automated bulk processing and manual editing via GUI, ensuring high-quality ID photos with AI-powered segmentation and multi-threading for efficiency.
 
+## Checklist of features
+- [X] Photo upload and display  
+- [X] Image Cropping and Resizing  
+- [ ] Background Removal and Replacement (In progress) - (HY & KJ)
+- [ ] Photo Export
+- [X] GUI  
+- [ ] Clothes Replacement
+- [ ] Face Detection and Centering (In progress)
+- [ ] Batch Processing (In progress) - (nisha)  
+- [ ] Photo Enhancement (In progress) - (wenkang)
+- [ ] Compliance Checker - (hong hai)
+- [ ] Multiple Layout Options - (nisha)
+- [ ] Size and Color Options - (complete rest first)
+- [ ] Cloud Integration -  (hy)
+- [X] History and Undo (done?)
+
 Frontend:
 
-1. cd into frontend
-2. npm install vite -D
-3. npm run dev
-4. go to the port given.
+1. Run react frontend server (port 5173)
+```
+cd frontend
+npm install
+npm run dev
+```
 
-Backend: (Proposed upon adding springboot)
-
-1. cd backend
-2. mvn spring-boot:run
+Backend: 
+1. Run springboot backend server (port 8080)
+```
+cd backend
+mvnw package
+mvnw spring-boot:run
+```
 
 To do:
-Add Springboot and OpenCV functionalities in backend folder, instead of their horrendous bootleg placeholder inside frontend/src/services right now.
+Add GrabCut function to the backend and link frontend interaction with backend
