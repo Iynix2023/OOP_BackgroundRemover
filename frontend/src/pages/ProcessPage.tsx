@@ -10,6 +10,7 @@ import EnhancementControls from '../components/EnhancementControls';
 import ComplianceChecker from '../components/ComplianceChecker';
 import { BackgroundOptions, ClothesOptions, CropArea, EnhanceOptions, ComplianceResult } from '../types';
 import imageProcessingService from '../services/imageProcessingService';
+import PhotoSheetGenerator from '../components/PhotoSheetGenerator';
 
 const ProcessPage: React.FC = () => {
   const debounceTimer = useRef<number | null>(null);
@@ -415,6 +416,7 @@ const ProcessPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
+                <PhotoSheetGenerator processedImage={processedImage} />
               </div>
             </div>
           </div>

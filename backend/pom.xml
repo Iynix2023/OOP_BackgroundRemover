@@ -62,6 +62,9 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<mainClass>com.oop_project.photo_bg_remover.PhotoBgRemoverApplication</mainClass>
+				</configuration>
 			</plugin>
 		</plugins>
 	</build>
