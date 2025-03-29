@@ -1,5 +1,5 @@
 import { BackgroundOptions, ClothesOptions, EnhanceOptions, CropArea, ComplianceResult } from '../types';
-
+const API_URL = 'http://localhost:8080'; 
 // This service handles all image processing functionality
 class ImageProcessingService {
   // Process an image with background removal
@@ -412,81 +412,98 @@ class ImageProcessingService {
       img.src = imageData;
     });
   }
-  // Batch processing
-  async startBatchProcessing(
-    files: File[],
-    background: BackgroundOptions,
-    clothes: ClothesOptions,
-    enhanceOptions: EnhanceOptions,
-    exportFormat: string,
-    exportSize: string
-  ): Promise<{ batchId: string }> {
+// For batch processing
+async startBatchProcessing(
+  files: File[],
+  background: BackgroundOptions,
+  clothes: ClothesOptions,
+  enhanceOptions: EnhanceOptions,
+  exportFormat: string,
+  exportSize: string
+): Promise<{ batchId: string }> {
+  try {
     const formData = new FormData();
     
-    // Add all files
+    // Add files to FormData
     files.forEach(file => {
       formData.append('files', file);
     });
     
-    // Add processing parameters
+    // Add background options
     formData.append('backgroundType', background.type);
     formData.append('backgroundValue', background.value);
-    formData.append('clothesType', clothes.type);
-    formData.append('clothesColor', clothes.color);
+    
+    // Add clothes options if provided
+    if (clothes && clothes.type) {
+      formData.append('clothesType', clothes.type);
+      formData.append('clothesColor', clothes.color);
+    }
+    
+    // Add enhancement options
     formData.append('brightness', enhanceOptions.brightness.toString());
     formData.append('contrast', enhanceOptions.contrast.toString());
     formData.append('saturation', enhanceOptions.saturation.toString());
     formData.append('smoothing', enhanceOptions.smoothing.toString());
+    
+    // Add export options
     formData.append('exportFormat', exportFormat);
     formData.append('exportSize', exportSize);
     
-    const response = await fetch('http://localhost:8080/api/batch/process', {
+    const response = await fetch('/api/batch/process', {
       method: 'POST',
-      body: formData
+      body: formData,
     });
     
     if (!response.ok) {
-      throw new Error('Failed to start batch processing');
+      const errorText = await response.text();
+      console.error('Error response:', errorText);
+      throw new Error(`Server error: ${response.status}`);
     }
     
     return await response.json();
+  } catch (error) {
+    console.error('Batch processing error:', error);
+    throw error;
   }
-
-async getBatchStatus(batchId: string): Promise<{
-  batchId: string;
-  totalImages: number;
-  processedCount: number;
-  completed: boolean;
-  images: Array<{
-    index: number;
-    originalName: string;
-    status: 'pending' | 'processing' | 'completed' | 'failed';
-    error?: string;
-  }>;
-}> {
-  const response = await fetch(`http://localhost:8080/api/batch/status/${batchId}`);
-  
-  if (!response.ok) {
-    throw new Error('Failed to get batch status');
-  }
-  
-  return await response.json();
 }
 
+/**
+ * Get the status of a batch processing job
+ */
+async getBatchStatus(batchId: string): Promise<any> {
+  try {
+    const response = await fetch(`/api/batch/status/${batchId}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get batch status: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error checking batch status:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get a processed image result
+ */
 async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
-  const response = await fetch(`http://localhost:8080/api/batch/result/${batchId}/${imageIndex}`);
-  
-  if (!response.ok) {
-    throw new Error('Failed to get processed image');
+  try {
+    const response = await fetch(`/api/batch/result/${batchId}/${imageIndex}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get processed image: ${response.status}`);
+    }
+    
+    // Convert response to blob and create an object URL
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  } catch (error) {
+    console.error('Error getting processed image:', error);
+    throw error;
   }
-  
-  // Get the image as a blob directly
-  const blob = await response.blob();
-  
-  // Create a URL for the blob
-  return URL.createObjectURL(blob);
 }
-  
   // Check if the photo meets compliance requirements
   checkCompliance(imageData: string): Promise<ComplianceResult> {
     return new Promise((resolve) => {
