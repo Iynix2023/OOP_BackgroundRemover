@@ -1,10 +1,10 @@
-package com.oop_project.photo_bg_remover;
+package com.example.demo;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 
 @SpringBootTest
-class PhotoBgRemoverApplicationTests {
+class DemoApplicationTests {
 
 	@Test
 	void contextLoads() {
