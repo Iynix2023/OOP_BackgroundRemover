@@ -27,7 +27,6 @@ const EnhancementControls: React.FC<EnhancementControlsProps> = ({
       brightness: 0, 
       contrast: 0, 
       saturation: 0, 
-      smoothing: 0,
       _timestamp: Date.now() // This ensures reset is treated as a new change
     };
     onChange(resetValues);
@@ -39,7 +38,6 @@ const EnhancementControls: React.FC<EnhancementControlsProps> = ({
       brightness: 5, 
       contrast: 10, 
       saturation: 5, 
-      smoothing: 20,
       _timestamp: Date.now() // This ensures auto-enhance is treated as a new change
     };
     onChange(enhancedValues);
@@ -106,28 +104,6 @@ const EnhancementControls: React.FC<EnhancementControlsProps> = ({
             onChange={(e) => handleChange('saturation', parseInt(e.target.value))}
             className="w-full"
           />
-        </div>
-        
-        <div>
-          <div className="flex justify-between">
-            <label htmlFor="smoothing" className="text-sm text-gray-600">Skin Smoothing</label>
-            <span className="text-xs px-2 py-0.5 bg-gray-100 rounded text-gray-600">
-              {options.smoothing}%
-            </span>
-          </div>
-          <input
-            id="smoothing"
-            type="range"
-            min="0"
-            max="100"
-            step="5"
-            value={options.smoothing}
-            onChange={(e) => handleChange('smoothing', parseInt(e.target.value))}
-            className="w-full"
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Applies gentle skin smoothing while preserving details
-          </p>
         </div>
       </div>
       

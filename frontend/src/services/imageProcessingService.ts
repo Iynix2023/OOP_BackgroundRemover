@@ -347,7 +347,6 @@ class ImageProcessingService {
     formData.append('brightness', enhanceOptions.brightness.toString());
     formData.append('contrast', enhanceOptions.contrast.toString());
     formData.append('saturation', enhanceOptions.saturation.toString());
-    formData.append('smoothing', enhanceOptions.smoothing.toString());
     formData.append('exportFormat', exportFormat);
     formData.append('exportSize', exportSize);
 

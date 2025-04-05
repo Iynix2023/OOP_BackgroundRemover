@@ -12,17 +12,27 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Base64;
+
+import nu.pattern.OpenCV; 
 
 
 @RestController
 @RequestMapping("/api/image")
 @CrossOrigin("*") // Allow all origins for testing
 class ImageProcessingController {
+    static {
+        // Load the OpenCV native library during class initialization
+        try {
+            OpenCV.loadLocally();
+            System.err.println("OpenCV loaded");
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load OpenCV", e);
+        }
+    }
 
     private final ImageProcessingService imageProcessingService;
 
