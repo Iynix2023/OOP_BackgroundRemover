@@ -237,6 +237,42 @@ class ImageProcessingService {
     }
   }
 
+  async analyzeImage(imageData: string): Promise<EnhanceOptions> {
+    try {
+      // Convert blob URL to base64 if needed
+      const processedImageData = await this.blobUrlToBase64(imageData);
+      
+      const formData = new FormData();
+      formData.append('image', processedImageData);
+      
+      const response = await fetch('http://localhost:8080/api/image/analyze', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Analysis failed: ${response.status}`);
+      }
+      
+      const params = await response.json();
+      return {
+        brightness: params.brightness || 0,
+        contrast: params.contrast || 0,
+        saturation: params.saturation || 0,
+        smoothing: params.smoothing || 0
+      };
+    } catch (error) {
+      console.error('Error analyzing image:', error);
+      // Fall back to default values
+      return {
+        brightness: 5,
+        contrast: 10, 
+        saturation: 5,
+        smoothing: 0
+      };
+    }
+  }
+
   // Helper function to clamp values between 0-255
   private clamp(value: number): number {
     return Math.max(0, Math.min(255, Math.round(value)));

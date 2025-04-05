@@ -23,7 +23,6 @@ const ProcessPage: React.FC = () => {
     brightness: 0,
     contrast: 0,
     saturation: 0,
-    smoothing: 0
   });
   const [complianceResult, setComplianceResult] = useState<ComplianceResult>({
     isCompliant: true,
@@ -42,20 +41,20 @@ const ProcessPage: React.FC = () => {
     if (files.length > 0) {
       const file = files[0];
       const reader = new FileReader();
-      
+
       reader.onload = (e) => {
         const imageData = e.target?.result as string;
         setUploadedImage(imageData);
         setProcessedImage(imageData);
-        
+
         // Initialize history
         setHistory([imageData]);
         setHistoryIndex(0);
-        
+
         // Move to the next step
         setStep(2);
       };
-      
+
       reader.readAsDataURL(file);
     }
   };
@@ -66,12 +65,12 @@ const ProcessPage: React.FC = () => {
 
   const applyCrop = async () => {
     if (!processedImage || !cropArea) return;
-    
+
     setIsProcessing(true);
     try {
       const croppedImage = await imageProcessingService.cropImage(processedImage, cropArea);
       setProcessedImage(croppedImage);
-      
+
       // Add to history
       const newHistory = history.slice(0, historyIndex + 1);
       newHistory.push(croppedImage);
@@ -86,14 +85,14 @@ const ProcessPage: React.FC = () => {
 
   const handleBackgroundChange = async (options: BackgroundOptions) => {
     setBackground(options);
-    
+
     if (!processedImage) return;
-    
+
     setIsProcessing(true);
     try {
       const newImage = await imageProcessingService.removeBackground(processedImage, options);
       setProcessedImage(newImage);
-      
+
       // Add to history
       const newHistory = history.slice(0, historyIndex + 1);
       newHistory.push(newImage);
@@ -108,14 +107,14 @@ const ProcessPage: React.FC = () => {
 
   const handleClothesChange = async (options: ClothesOptions) => {
     setClothes(options);
-    
+
     if (!processedImage) return;
-    
+
     setIsProcessing(true);
     try {
       const newImage = await imageProcessingService.replaceClothes(processedImage, options);
       setProcessedImage(newImage);
-      
+
       // Add to history
       const newHistory = history.slice(0, historyIndex + 1);
       newHistory.push(newImage);
@@ -140,40 +139,38 @@ const ProcessPage: React.FC = () => {
   const handleEnhanceChange = async (options: EnhanceOptions) => {
     // Update UI state immediately
     setEnhanceOptions(options);
-    
+
     // Use preEnhancementImage instead of processedImage
     if (!preEnhancementImage) return;
-    
+
     // Rest of your function remains the same, but use preEnhancementImage
-    const isReset = options.brightness === 0 && 
-                   options.contrast === 0 && 
-                   options.saturation === 0 && 
-                   options.smoothing === 0;
-                   
+    const isReset = options.brightness === 0 &&
+      options.contrast === 0 &&
+      options.saturation === 0;
+
     if (debounceTimer.current !== null) {
       window.clearTimeout(debounceTimer.current);
       debounceTimer.current = null;
     }
-    
+
     const processImage = async () => {
       setIsProcessing(true);
-      
+
       try {
         console.log("Processing with options:", options);
-        
+
         const cleanOptions = {
           brightness: options.brightness,
           contrast: options.contrast,
-          saturation: options.saturation,
-          smoothing: options.smoothing
+          saturation: options.saturation
         };
-        
+
         // Use preEnhancementImage here instead of processedImage
         const newImage = await imageProcessingService.enhanceImage(preEnhancementImage, cleanOptions);
-        
+
         if (newImage) {
           setProcessedImage(newImage);
-          
+
           // Add to history
           const newHistory = history.slice(0, historyIndex + 1);
           newHistory.push(newImage);
@@ -187,17 +184,17 @@ const ProcessPage: React.FC = () => {
         debounceTimer.current = null;
       }
     };
-    
+
     if (isReset && preEnhancementImage) {
       // For reset, just use the original pre-enhancement image
       setProcessedImage(preEnhancementImage);
-      
+
       // Add to history
       const newHistory = history.slice(0, historyIndex + 1);
       newHistory.push(preEnhancementImage);
       setHistory(newHistory);
       setHistoryIndex(newHistory.length - 1);
-      
+
       // Clear the timer since we're not actually making a request
       if (debounceTimer.current !== null) {
         window.clearTimeout(debounceTimer.current);
@@ -211,7 +208,7 @@ const ProcessPage: React.FC = () => {
 
   const checkCompliance = async () => {
     if (!processedImage) return;
-    
+
     setIsProcessing(true);
     try {
       const result = await imageProcessingService.checkCompliance(processedImage);
@@ -239,7 +236,7 @@ const ProcessPage: React.FC = () => {
 
   const downloadImage = () => {
     if (!processedImage) return;
-    
+
     const link = document.createElement('a');
     link.href = processedImage;
     link.download = 'id-photo.png';
@@ -254,7 +251,7 @@ const ProcessPage: React.FC = () => {
     } else if (step === 5) {
       await checkCompliance();
     }
-    
+
     setStep(step + 1);
   };
 
@@ -274,17 +271,17 @@ const ProcessPage: React.FC = () => {
             </p>
           </div>
         );
-      
+
       case 2:
         return (
           <div className="max-w-4xl mx-auto">
             <h2 className="text-2xl font-bold mb-6">Crop & Resize</h2>
             {uploadedImage && (
-              <ImageCropper 
-                imageUrl={uploadedImage} 
-                onCropComplete={handleCropComplete} 
-                aspectRatio={35/45}  
-                lockAspectRatio={true} 
+              <ImageCropper
+                imageUrl={uploadedImage}
+                onCropComplete={handleCropComplete}
+                aspectRatio={35 / 45}
+                lockAspectRatio={true}
               />
             )}
             <p className="mt-4 text-sm text-gray-500">
@@ -292,7 +289,7 @@ const ProcessPage: React.FC = () => {
             </p>
           </div>
         );
-      
+
       case 3:
         return (
           <div className="max-w-4xl mx-auto">
@@ -301,9 +298,9 @@ const ProcessPage: React.FC = () => {
               <div className="md:col-span-2">
                 {processedImage && (
                   <div className="bg-gray-100 rounded-lg overflow-hidden">
-                    <img 
-                      src={processedImage} 
-                      alt="Processed" 
+                    <img
+                      src={processedImage}
+                      alt="Processed"
                       className="w-full h-auto"
                     />
                   </div>
@@ -316,7 +313,7 @@ const ProcessPage: React.FC = () => {
                 )}
               </div>
               <div>
-                <BackgroundSelector 
+                <BackgroundSelector
                   onSelect={handleBackgroundChange}
                   currentBackground={background}
                 />
@@ -324,7 +321,7 @@ const ProcessPage: React.FC = () => {
             </div>
           </div>
         );
-      
+
       case 4:
         return (
           <div className="max-w-4xl mx-auto">
@@ -333,9 +330,9 @@ const ProcessPage: React.FC = () => {
               <div className="md:col-span-2">
                 {processedImage && (
                   <div className="bg-gray-100 rounded-lg overflow-hidden">
-                    <img 
-                      src={processedImage} 
-                      alt="Processed" 
+                    <img
+                      src={processedImage}
+                      alt="Processed"
                       className="w-full h-auto"
                     />
                   </div>
@@ -348,7 +345,7 @@ const ProcessPage: React.FC = () => {
                 )}
               </div>
               <div>
-                <ClothesSelector 
+                <ClothesSelector
                   onSelect={handleClothesChange}
                   currentClothes={clothes}
                 />
@@ -356,7 +353,7 @@ const ProcessPage: React.FC = () => {
             </div>
           </div>
         );
-      
+
       case 5:
         return (
           <div className="max-w-4xl mx-auto">
@@ -365,9 +362,9 @@ const ProcessPage: React.FC = () => {
               <div className="md:col-span-2">
                 {processedImage && (
                   <div className="bg-gray-100 rounded-lg overflow-hidden">
-                    <img 
-                      src={processedImage} 
-                      alt="Processed" 
+                    <img
+                      src={processedImage}
+                      alt="Processed"
                       className="w-full h-auto"
                     />
                   </div>
@@ -380,15 +377,16 @@ const ProcessPage: React.FC = () => {
                 )}
               </div>
               <div>
-                <EnhancementControls 
+                <EnhancementControls
                   options={enhanceOptions}
                   onChange={handleEnhanceChange}
+                  preEnhancementImage={preEnhancementImage}
                 />
               </div>
             </div>
           </div>
         );
-      
+
       case 6:
         return (
           <div className="max-w-4xl mx-auto">
@@ -397,15 +395,15 @@ const ProcessPage: React.FC = () => {
               <div className="md:col-span-2">
                 {processedImage && (
                   <div className="bg-gray-100 rounded-lg overflow-hidden">
-                    <img 
-                      src={processedImage} 
-                      alt="Processed" 
+                    <img
+                      src={processedImage}
+                      alt="Processed"
                       className="w-full h-auto"
                     />
                   </div>
                 )}
                 <div className="mt-6 flex space-x-4">
-                  <button 
+                  <button
                     className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
                     onClick={downloadImage}
                   >
@@ -420,7 +418,7 @@ const ProcessPage: React.FC = () => {
               </div>
               <div className="space-y-6">
                 <ComplianceChecker result={complianceResult} />
-                
+
                 <div className="border rounded-lg p-4">
                   <h3 className="font-medium text-gray-700 mb-2">Export Options</h3>
                   <div className="space-y-3">
@@ -453,7 +451,7 @@ const ProcessPage: React.FC = () => {
             </div>
           </div>
         );
-      
+
       default:
         return null;
     }
@@ -462,45 +460,43 @@ const ProcessPage: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      
+
       <main className="flex-grow py-8">
         <div className="container mx-auto px-4">
           {/* Progress Steps */}
           <div className="mb-8">
             <div className="flex items-center justify-between max-w-3xl mx-auto">
               {[1, 2, 3, 4, 5, 6].map((stepNumber) => (
-                <div 
+                <div
                   key={stepNumber}
                   className={`flex flex-col items-center ${stepNumber < 6 ? 'w-1/5' : ''}`}
                 >
-                  <div 
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      stepNumber === step
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center ${stepNumber === step
                         ? 'bg-indigo-600 text-white'
                         : stepNumber < step
-                        ? 'bg-indigo-200 text-indigo-700'
-                        : 'bg-gray-200 text-gray-500'
-                    }`}
+                          ? 'bg-indigo-200 text-indigo-700'
+                          : 'bg-gray-200 text-gray-500'
+                      }`}
                   >
                     {stepNumber < step ? <Check size={18} /> : stepNumber}
                   </div>
                   {stepNumber < 6 && (
-                    <div 
-                      className={`h-1 w-full mt-4 ${
-                        stepNumber < step ? 'bg-indigo-400' : 'bg-gray-200'
-                      }`}
+                    <div
+                      className={`h-1 w-full mt-4 ${stepNumber < step ? 'bg-indigo-400' : 'bg-gray-200'
+                        }`}
                     />
                   )}
                 </div>
               ))}
             </div>
           </div>
-          
+
           {/* Step Content */}
           <div className="mb-8">
             {renderStepContent()}
           </div>
-          
+
           {/* Navigation Buttons */}
           {step > 1 && (
             <div className="flex justify-between max-w-4xl mx-auto mt-8">
@@ -512,9 +508,9 @@ const ProcessPage: React.FC = () => {
                 <ArrowLeft size={18} className="mr-2" />
                 Previous
               </button>
-              
+
               <div className="flex space-x-4">
-                <button 
+                <button
                   className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
                   onClick={handleUndo}
                   disabled={historyIndex <= 0 || isProcessing}
@@ -522,7 +518,7 @@ const ProcessPage: React.FC = () => {
                   <Undo size={18} className="mr-2" />
                   Undo
                 </button>
-                <button 
+                <button
                   className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
                   onClick={handleRedo}
                   disabled={historyIndex >= history.length - 1 || isProcessing}
@@ -531,7 +527,7 @@ const ProcessPage: React.FC = () => {
                   Redo
                 </button>
               </div>
-              
+
               {step < 6 ? (
                 <button
                   onClick={nextStep}
@@ -555,7 +551,7 @@ const ProcessPage: React.FC = () => {
           )}
         </div>
       </main>
-      
+
       <Footer />
     </div>
   );

@@ -1,14 +1,19 @@
 import React, { useCallback } from 'react';
 import { EnhanceOptions } from '../types';
+import imageProcessingService from '../services/imageProcessingService';
 
+// Add preEnhancementImage as a prop
 interface EnhancementControlsProps {
   options: EnhanceOptions;
   onChange: (options: EnhanceOptions) => void;
+  preEnhancementImage: string | null;
 }
 
+// Update the component props
 const EnhancementControls: React.FC<EnhancementControlsProps> = ({ 
   options, 
-  onChange 
+  onChange,
+  preEnhancementImage
 }) => {
   // Use debounced change handler to prevent too many updates
   const handleChange = useCallback((property: keyof EnhanceOptions, value: number) => {
@@ -32,16 +37,41 @@ const EnhancementControls: React.FC<EnhancementControlsProps> = ({
     onChange(resetValues);
   }, [onChange]);
 
-  // Apply auto-enhance preset
-  const handleAutoEnhance = useCallback(() => {
-    const enhancedValues = { 
-      brightness: 5, 
-      contrast: 10, 
-      saturation: 5, 
-      _timestamp: Date.now() // This ensures auto-enhance is treated as a new change
-    };
-    onChange(enhancedValues);
-  }, [onChange]);
+  // Update the auto-enhance function
+  const handleAutoEnhance = useCallback(async () => {
+    if (!preEnhancementImage) return;
+    
+    try {
+      // Show loading state
+      const loadingValues = { 
+        brightness: 0, 
+        contrast: 0, 
+        saturation: 0,
+        _timestamp: Date.now(),
+        _loading: true // Add a loading flag
+      };
+      onChange(loadingValues);
+      
+      // Analyze the image
+      const enhancedValues = await imageProcessingService.analyzeImage(preEnhancementImage);
+      
+      // Apply the recommended values
+      onChange({
+        ...enhancedValues,
+        _timestamp: Date.now()
+      });
+    } catch (error) {
+      console.error('Auto-enhance failed:', error);
+      // Fall back to default values
+      const defaultValues = { 
+        brightness: 5, 
+        contrast: 10, 
+        saturation: 5,
+        _timestamp: Date.now()
+      };
+      onChange(defaultValues);
+    }
+  }, [preEnhancementImage, onChange]);
 
 
   return (
