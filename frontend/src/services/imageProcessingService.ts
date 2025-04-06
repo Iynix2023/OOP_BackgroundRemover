@@ -259,7 +259,7 @@ class ImageProcessingService {
         brightness: params.brightness || 0,
         contrast: params.contrast || 0,
         saturation: params.saturation || 0,
-        smoothing: params.smoothing || 0
+
       };
     } catch (error) {
       console.error('Error analyzing image:', error);
@@ -268,7 +268,6 @@ class ImageProcessingService {
         brightness: 5,
         contrast: 10, 
         saturation: 5,
-        smoothing: 0
       };
     }
   }
