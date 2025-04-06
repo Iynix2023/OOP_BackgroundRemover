@@ -1,7 +1,7 @@
-package com.oop_project.photo_bg_remover.controller;
+package com.example.demo.controller;
 
-import com.oop_project.photo_bg_remover.ExportOptions;
-import com.oop_project.photo_bg_remover.service.SheetGeneratorService;
+import com.example.demo.ExportOptions;
+import com.example.demo.service.SheetGeneratorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

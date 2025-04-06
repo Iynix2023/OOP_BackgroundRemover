@@ -1,4 +1,4 @@
-package com.oop_project.photo_bg_remover.controller;
+package com.example.demo.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;

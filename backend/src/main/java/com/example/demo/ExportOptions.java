@@ -1,4 +1,4 @@
-package com.oop_project.photo_bg_remover;
+package com.example.demo;
 
 public class ExportOptions {
     private ExportFormat format;

@@ -1,8 +1,8 @@
 
 
-package com.oop_project.photo_bg_remover.service;
+package com.example.demo.service;
 
-import com.oop_project.photo_bg_remover.ExportOptions;
+import com.example.demo.ExportOptions;
 import org.springframework.stereotype.Service;
 
 @Service
