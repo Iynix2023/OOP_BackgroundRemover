@@ -12,22 +12,22 @@ class ImageProcessingService {
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        
+
         canvas.width = img.width;
         canvas.height = img.height;
-        
+
         if (!ctx) {
           resolve(imageData);
           return;
         }
-        
+
         // Draw the original image
         ctx.drawImage(img, 0, 0);
-        
+
         // Get image data for processing
         const imageDataObj = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageDataObj.data;
-        
+
         // Simple background removal algorithm (green screen technique)
         // In a real app, this would use ML-based segmentation
         if (options.type === 'color') {
@@ -36,7 +36,7 @@ class ImageProcessingService {
           const r = parseInt(color.slice(1, 3), 16);
           const g = parseInt(color.slice(3, 5), 16);
           const b = parseInt(color.slice(5, 7), 16);
-          
+
           // Simple edge detection to find foreground
           for (let i = 0; i < data.length; i += 4) {
             // Check if pixel is likely background (using simple luminance threshold)
@@ -66,15 +66,15 @@ class ImageProcessingService {
             bgCanvas.width = canvas.width;
             bgCanvas.height = canvas.height;
             const bgCtx = bgCanvas.getContext('2d');
-            
+
             if (bgCtx) {
               // Draw background image scaled to fit
               bgCtx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
-              
+
               // Get background image data
               const bgImageData = bgCtx.getImageData(0, 0, canvas.width, canvas.height);
               const bgData = bgImageData.data;
-              
+
               // Replace background pixels
               for (let i = 0; i < data.length; i += 4) {
                 const luminance = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
@@ -86,7 +86,7 @@ class ImageProcessingService {
                 }
               }
             }
-            
+
             // Put the processed image data back
             ctx.putImageData(imageDataObj, 0, 0);
             resolve(canvas.toDataURL('image/png'));
@@ -94,16 +94,16 @@ class ImageProcessingService {
           bgImg.src = options.value;
           return;
         }
-        
+
         // Put the processed image data back
         ctx.putImageData(imageDataObj, 0, 0);
         resolve(canvas.toDataURL('image/png'));
       };
-      
+
       img.src = imageData;
     });
   }
-  
+
   // Apply clothes replacement
   async replaceClothes(
     imageData: string,
@@ -114,41 +114,41 @@ class ImageProcessingService {
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        
+
         canvas.width = img.width;
         canvas.height = img.height;
-        
+
         if (!ctx) {
           resolve(imageData);
           return;
         }
-        
+
         // Draw the original image
         ctx.drawImage(img, 0, 0);
-        
+
         // Get image data for processing
         const imageDataObj = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageDataObj.data;
-        
+
         // Simple clothes replacement (in a real app, this would use ML-based segmentation)
         // Detect the lower part of the image (assuming it contains clothes)
         const lowerThird = Math.floor(canvas.height * 0.4); // Start from 40% down
-        
+
         // Parse the color
         const color = options.color;
         const r = parseInt(color.slice(1, 3), 16);
         const g = parseInt(color.slice(3, 5), 16);
         const b = parseInt(color.slice(5, 7), 16);
-        
+
         // Apply color to the lower part with some blending
         for (let y = lowerThird; y < canvas.height; y++) {
           for (let x = 0; x < canvas.width; x++) {
             const idx = (y * canvas.width + x) * 4;
-            
+
             // Skip pixels that are likely background (very light)
             const luminance = (data[idx] * 0.299 + data[idx + 1] * 0.587 + data[idx + 2] * 0.114);
             if (luminance > 240) continue;
-            
+
             // Apply color with blending to maintain texture
             data[idx] = Math.floor((data[idx] * 0.3) + (r * 0.7));     // R
             data[idx + 1] = Math.floor((data[idx + 1] * 0.3) + (g * 0.7)); // G
@@ -156,15 +156,15 @@ class ImageProcessingService {
             // Alpha remains unchanged
           }
         }
-        
+
         // Add collar based on clothes type
         if (options.type === 'suit') {
           // Draw a simple suit collar
           const collarY = Math.floor(canvas.height * 0.4);
           const collarWidth = Math.floor(canvas.width * 0.2);
-          
+
           ctx.putImageData(imageDataObj, 0, 0);
-          
+
           // Draw collar
           ctx.fillStyle = '#FFFFFF'; // White shirt
           ctx.beginPath();
@@ -173,15 +173,15 @@ class ImageProcessingService {
           ctx.lineTo(canvas.width / 2 + collarWidth, collarY);
           ctx.closePath();
           ctx.fill();
-          
+
           return resolve(canvas.toDataURL('image/png'));
         } else if (options.type === 'shirt' || options.type === 'blouse') {
           // Add a simple collar
           const collarY = Math.floor(canvas.height * 0.35);
           const collarWidth = Math.floor(canvas.width * 0.15);
-          
+
           ctx.putImageData(imageDataObj, 0, 0);
-          
+
           // Draw collar
           ctx.fillStyle = '#FFFFFF'; // White collar
           ctx.beginPath();
@@ -190,157 +190,103 @@ class ImageProcessingService {
           ctx.lineTo(canvas.width / 2 + collarWidth, collarY);
           ctx.closePath();
           ctx.fill();
-          
+
           return resolve(canvas.toDataURL('image/png'));
         }
-        
+
         // Put the processed image data back
         ctx.putImageData(imageDataObj, 0, 0);
         resolve(canvas.toDataURL('image/png'));
       };
-      
+
       img.src = imageData;
     });
   }
-  
+
   // Apply image enhancements
   async enhanceImage(
     imageData: string,
     options: EnhanceOptions
   ): Promise<string> {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        canvas.width = img.width;
-        canvas.height = img.height;
-        
-        if (!ctx) {
-          resolve(imageData);
-          return;
-        }
-        
-        // Draw the original image
-        ctx.drawImage(img, 0, 0);
-        
-        // Get image data for processing
-        const imageDataObj = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageDataObj.data;
-        
-        // Handle options more carefully
-        // Convert slider values to usable ranges
-        const brightnessAdjust = options.brightness / 100; // -0.5 to 0.5
-        const contrastAdjust = 1 + options.contrast / 100; // 0.5 to 1.5
-        const saturationAdjust = 1 + options.saturation / 100; // 0.5 to 1.5
-        const smoothingAdjust = options.smoothing / 100; // 0 to 1
-        
-        // Process each pixel
-        for (let i = 0; i < data.length; i += 4) {
-          // Get original RGB values
-          let r = data[i];
-          let g = data[i + 1];
-          let b = data[i + 2];
-          
-          // Apply brightness
-          r += brightnessAdjust * 255;
-          g += brightnessAdjust * 255;
-          b += brightnessAdjust * 255;
-          
-          // Apply contrast
-          const factor = (259 * (contrastAdjust * 100 + 255)) / (255 * (259 - contrastAdjust * 100));
-          r = factor * (r - 128) + 128;
-          g = factor * (g - 128) + 128;
-          b = factor * (b - 128) + 128;
-          
-          // Apply saturation
-          const avg = (r + g + b) / 3;
-          r = avg + saturationAdjust * (r - avg);
-          g = avg + saturationAdjust * (g - avg);
-          b = avg + saturationAdjust * (b - avg);
-          
-          // Clamp values to valid range
-          data[i] = Math.max(0, Math.min(255, Math.round(r)));
-          data[i + 1] = Math.max(0, Math.min(255, Math.round(g)));
-          data[i + 2] = Math.max(0, Math.min(255, Math.round(b)));
-          // Alpha remains unchanged
-        }
-        
-        // Apply skin smoothing if needed
-        if (smoothingAdjust > 0) {
-          // Create a copy of the processed data
-          const smoothedData = new Uint8ClampedArray(data);
-          
-          // Simple box blur for skin tones
-          for (let y = 1; y < canvas.height - 1; y++) {
-            for (let x = 1; x < canvas.width - 1; x++) {
-              const idx = (y * canvas.width + x) * 4;
-              
-              // Simple skin detection (adjust as needed)
-              const r = data[idx];
-              const g = data[idx + 1];
-              const b = data[idx + 2];
-              
-              // Check if pixel is likely skin
-              if (r > 60 && g > 40 && b > 20 && r > g && r > b) {
-                // Apply box blur to skin pixels
-                for (let c = 0; c < 3; c++) {
-                  let sum = 0;
-                  let count = 0;
-                  
-                  // Sample 3x3 neighborhood
-                  for (let dy = -1; dy <= 1; dy++) {
-                    for (let dx = -1; dx <= 1; dx++) {
-                      const nx = x + dx;
-                      const ny = y + dy;
-                      
-                      if (nx >= 0 && nx < canvas.width && ny >= 0 && ny < canvas.height) {
-                        const neighborIdx = (ny * canvas.width + nx) * 4 + c;
-                        sum += data[neighborIdx];
-                        count++;
-                      }
-                    }
-                  }
-                  
-                  // Blend original with smoothed value
-                  const blendedValue = (1 - smoothingAdjust) * data[idx + c] + smoothingAdjust * (sum / count);
-                  smoothedData[idx + c] = Math.max(0, Math.min(255, Math.round(blendedValue)));
-                }
-              }
-            }
-          }
-          
-          // Replace data with smoothed version
-          for (let i = 0; i < data.length; i++) {
-            data[i] = smoothedData[i];
-          }
-        }
-        
-        // Put the processed image data back
-        ctx.putImageData(imageDataObj, 0, 0);
-        resolve(canvas.toDataURL('image/png'));
-      };
+    console.log("Sending enhance request with options:", options);
+    
+    // Convert blob URL to base64 if needed
+    const processedImageData = await this.blobUrlToBase64(imageData);
+    
+    const formData = new FormData();
+    formData.append('image', processedImageData);
+    formData.append('options', JSON.stringify(options));
+    
+    try {
+      const response = await fetch('http://localhost:8080/api/image/enhance', {
+        method: 'POST',
+        body: formData
+      });
       
-      img.src = imageData;
-    });
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server error:', errorText);
+        throw new Error(`Failed to enhance image: ${response.status} ${response.statusText}`);
+      }
+      
+      const blob = await response.blob();
+      return URL.createObjectURL(blob);
+    } catch (error) {
+      console.error('Error in enhanceImage service:', error);
+      throw error;
+    }
   }
-  
+
+  async analyzeImage(imageData: string): Promise<EnhanceOptions> {
+    try {
+      // Convert blob URL to base64 if needed
+      const processedImageData = await this.blobUrlToBase64(imageData);
+      
+      const formData = new FormData();
+      formData.append('image', processedImageData);
+      
+      const response = await fetch('http://localhost:8080/api/image/analyze', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Analysis failed: ${response.status}`);
+      }
+      
+      const params = await response.json();
+      return {
+        brightness: params.brightness || 0,
+        contrast: params.contrast || 0,
+        saturation: params.saturation || 0,
+
+      };
+    } catch (error) {
+      console.error('Error analyzing image:', error);
+      // Fall back to default values
+      return {
+        brightness: 5,
+        contrast: 10, 
+        saturation: 5,
+      };
+    }
+  }
+
   // Helper function to clamp values between 0-255
   private clamp(value: number): number {
     return Math.max(0, Math.min(255, Math.round(value)));
   }
-  
+
   // Helper function for HSL to RGB conversion
   private hue2rgb(p: number, q: number, t: number): number {
     if (t < 0) t += 1;
     if (t > 1) t -= 1;
-    if (t < 1/6) return p + (q - p) * 6 * t;
-    if (t < 1/2) return q;
-    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
     return p;
   }
-  
+
   // Crop an image based on crop area
   async cropImage(
     imageData: string,
@@ -352,16 +298,16 @@ class ImageProcessingService {
         // First create a canvas for cropping
         const cropCanvas = document.createElement('canvas');
         const cropCtx = cropCanvas.getContext('2d');
-        
+
         if (!cropCtx) {
           resolve(imageData);
           return;
         }
-        
+
         // Set canvas size to crop dimensions
         cropCanvas.width = cropArea.width;
         cropCanvas.height = cropArea.height;
-        
+
         // Draw the cropped portion of the image
         cropCtx.drawImage(
           img,
@@ -374,25 +320,25 @@ class ImageProcessingService {
           cropCanvas.width,
           cropCanvas.height
         );
-        
+
         // Now create a second canvas for resizing to standard dimensions
         // Standard dimensions for ID photo (35mm × 45mm at 300 DPI)
         // 35mm = 413 pixels, 45mm = 531 pixels at 300 DPI
         const standardWidth = Math.round(35 * 300 / 25.4); // 25.4mm = 1 inch
         const standardHeight = Math.round(45 * 300 / 25.4);
-        
+
         const resizeCanvas = document.createElement('canvas');
         const resizeCtx = resizeCanvas.getContext('2d');
-        
+
         if (!resizeCtx) {
           resolve(cropCanvas.toDataURL('image/png'));
           return;
         }
-        
+
         // Set canvas to standard dimensions
         resizeCanvas.width = standardWidth;
         resizeCanvas.height = standardHeight;
-        
+
         // Draw and resize the cropped image to standard dimensions
         resizeCtx.drawImage(
           cropCanvas,
@@ -405,10 +351,10 @@ class ImageProcessingService {
           standardWidth,
           standardHeight
         );
-        
+
         resolve(resizeCanvas.toDataURL('image/png'));
       };
-      
+
       img.src = imageData;
     });
   }
@@ -443,7 +389,6 @@ async startBatchProcessing(
     formData.append('brightness', enhanceOptions.brightness.toString());
     formData.append('contrast', enhanceOptions.contrast.toString());
     formData.append('saturation', enhanceOptions.saturation.toString());
-    formData.append('smoothing', enhanceOptions.smoothing.toString());
     
     // Add export options
     formData.append('exportFormat', exportFormat);
@@ -453,13 +398,13 @@ async startBatchProcessing(
       method: 'POST',
       body: formData,
     });
-    
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Error response:', errorText);
       throw new Error(`Server error: ${response.status}`);
     }
-    
+
     return await response.json();
   } catch (error) {
     console.error('Batch processing error:', error);
@@ -511,10 +456,10 @@ async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        
+
         canvas.width = img.width;
         canvas.height = img.height;
-        
+
         if (!ctx) {
           resolve({
             isCompliant: false,
@@ -526,26 +471,26 @@ async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
           });
           return;
         }
-        
+
         // Draw the image
         ctx.drawImage(img, 0, 0);
-        
+
         // Get image data for analysis
         const imageDataObj = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const data = imageDataObj.data;
-        
+
         const issues = [];
-        
+
         // Check aspect ratio
         const aspectRatio = canvas.width / canvas.height;
-        if (Math.abs(aspectRatio - (35/45)) > 0.1) {
+        if (Math.abs(aspectRatio - (35 / 45)) > 0.1) {
           issues.push({
             type: 'size',
             message: 'Aspect ratio does not match standard ID photo requirements (35:45)',
             severity: 'warning'
           });
         }
-        
+
         // Check resolution
         if (canvas.width < 400 || canvas.height < 500) {
           issues.push({
@@ -554,7 +499,7 @@ async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
             severity: 'warning'
           });
         }
-        
+
         // Simple face detection (in a real app, this would use ML-based face detection)
         // This is a very simplified version that looks for skin-colored pixels in the upper half
         let facePixelsCount = 0;
@@ -564,14 +509,14 @@ async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
             const r = data[idx];
             const g = data[idx + 1];
             const b = data[idx + 2];
-            
+
             // Simple skin detection
             if (r > 60 && g > 40 && b > 20 && r > g && r > b && r - g > 15) {
               facePixelsCount++;
             }
           }
         }
-        
+
         const facePixelThreshold = (canvas.width * canvas.height) / 20; // 5% of image
         if (facePixelsCount < facePixelThreshold) {
           issues.push({
@@ -580,11 +525,11 @@ async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
             severity: 'error'
           });
         }
-        
+
         // Check background uniformity (simplified)
         let backgroundVariation = 0;
         let lastPixelValue = -1;
-        
+
         // Sample the edges of the image to check background
         for (let i = 0; i < canvas.width; i += 10) {
           const idx = i * 4; // Top edge
@@ -592,13 +537,13 @@ async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
           const g = data[idx + 1];
           const b = data[idx + 2];
           const value = r + g + b;
-          
+
           if (lastPixelValue !== -1) {
             backgroundVariation += Math.abs(value - lastPixelValue);
           }
           lastPixelValue = value;
         }
-        
+
         if (backgroundVariation > 5000) {
           issues.push({
             type: 'background',
@@ -606,15 +551,38 @@ async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
             severity: 'warning'
           });
         }
-        
+
         resolve({
           isCompliant: issues.length === 0,
           issues
         });
       };
-      
+
       img.src = imageData;
     });
+  }
+
+  // Add this helper method to your ImageProcessingService class
+  private async blobUrlToBase64(url: string): Promise<string> {
+    // If this is already a data URL, return it
+    if (url.startsWith('data:')) {
+      return url;
+    }
+    
+    // If it's a blob URL, fetch it and convert to base64
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error('Error converting blob URL to base64:', error);
+      throw error;
+    }
   }
 }
 

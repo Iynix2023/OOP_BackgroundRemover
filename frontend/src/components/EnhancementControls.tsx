@@ -1,57 +1,78 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { EnhanceOptions } from '../types';
+import imageProcessingService from '../services/imageProcessingService';
 
+// Add preEnhancementImage as a prop
 interface EnhancementControlsProps {
   options: EnhanceOptions;
   onChange: (options: EnhanceOptions) => void;
+  preEnhancementImage: string | null;
 }
 
+// Update the component props
 const EnhancementControls: React.FC<EnhancementControlsProps> = ({ 
   options, 
-  onChange 
+  onChange,
+  preEnhancementImage
 }) => {
-  // Handle changes with debouncing to prevent too many updates
-  const handleChange = (property: keyof EnhanceOptions, value: number) => {
-    // Create a new object to ensure React detects the change
+  // Use debounced change handler to prevent too many updates
+  const handleChange = useCallback((property: keyof EnhanceOptions, value: number) => {
+    // Include a timestamp to ensure each change is treated as unique
     const newOptions = {
       ...options,
-      [property]: value
+      [property]: value,
+      _timestamp: Date.now() // This forces the parent to treat the object as new
     };
     onChange(newOptions);
-  };
+  }, [options, onChange]);
 
   // Reset all values to default
-// In EnhancementControls.tsx
-const handleReset = () => {
-  // Create a new object to ensure React detects the change
-  const resetValues = { 
-    brightness: 0, 
-    contrast: 0, 
-    saturation: 0, 
-    smoothing: 0 
-  };
-  
-  // Directly call onChange with the reset values
-  onChange(resetValues);
-  
-  // You might want to add a small delay to ensure UI updates first
-  setTimeout(() => {
-    // Force a re-processing if needed
-    onChange({...resetValues});
-  }, 10);
-};
-
-  // Apply auto-enhance preset
-  const handleAutoEnhance = () => {
-    // Conservative auto-enhance values
-    const enhancedValues = { 
-      brightness: 5, 
-      contrast: 10, 
-      saturation: 5, 
-      smoothing: 20 
+  const handleReset = useCallback(() => {
+    const resetValues = { 
+      brightness: 0, 
+      contrast: 0, 
+      saturation: 0, 
+      _timestamp: Date.now() // This ensures reset is treated as a new change
     };
-    onChange(enhancedValues);
-  };
+    onChange(resetValues);
+  }, [onChange]);
+
+  // Update the auto-enhance function
+  const handleAutoEnhance = useCallback(async () => {
+    if (!preEnhancementImage) return;
+    
+    try {
+      // Show loading state
+      const loadingValues = { 
+        brightness: 0, 
+        contrast: 0, 
+        saturation: 0,
+        _timestamp: Date.now(),
+        _loading: true // Add a loading flag
+      };
+      onChange(loadingValues);
+      
+      // Analyze the image
+      const enhancedValues = await imageProcessingService.analyzeImage(preEnhancementImage);
+      
+      // Apply the recommended values
+      onChange({
+        ...enhancedValues,
+        _timestamp: Date.now()
+      });
+    } catch (error) {
+      console.error('Auto-enhance failed:', error);
+      // Fall back to default values
+      const defaultValues = { 
+        brightness: 5, 
+        contrast: 10, 
+        saturation: 5,
+        _timestamp: Date.now()
+      };
+      onChange(defaultValues);
+    }
+  }, [preEnhancementImage, onChange]);
+
 
   return (
     <div className="space-y-4 border rounded-lg p-4 bg-white">
@@ -113,28 +134,6 @@ const handleReset = () => {
             onChange={(e) => handleChange('saturation', parseInt(e.target.value))}
             className="w-full"
           />
-        </div>
-        
-        <div>
-          <div className="flex justify-between">
-            <label htmlFor="smoothing" className="text-sm text-gray-600">Skin Smoothing</label>
-            <span className="text-xs px-2 py-0.5 bg-gray-100 rounded text-gray-600">
-              {options.smoothing}%
-            </span>
-          </div>
-          <input
-            id="smoothing"
-            type="range"
-            min="0"
-            max="100"
-            step="5"
-            value={options.smoothing}
-            onChange={(e) => handleChange('smoothing', parseInt(e.target.value))}
-            className="w-full"
-          />
-          <p className="text-xs text-gray-500 mt-1">
-            Applies gentle skin smoothing while preserving details
-          </p>
         </div>
       </div>
       

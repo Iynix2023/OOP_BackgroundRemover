@@ -34,7 +34,6 @@ export interface EnhanceOptions {
   brightness: number;
   contrast: number;
   saturation: number;
-  smoothing: number;
 }
 
 export interface ComplianceIssue {
