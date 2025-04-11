@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { ArrowLeft, ArrowRight, Save, Undo, Redo, Check } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Save, Undo, Redo, Check, Camera as CameraIcon } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import ImageUploader from '../components/ImageUploader';
@@ -8,6 +8,7 @@ import BackgroundSelector from '../components/BackgroundSelector';
 import ClothesSelector from '../components/ClothesSelector';
 import EnhancementControls from '../components/EnhancementControls';
 import ComplianceChecker from '../components/ComplianceChecker';
+import InlineCamera from '../components/InlineCamera';
 import { BackgroundOptions, ClothesOptions, CropArea, EnhanceOptions, ComplianceResult } from '../types';
 import imageProcessingService from '../services/imageProcessingService';
 import PhotoSheetGenerator from '../components/PhotoSheetGenerator';
@@ -30,6 +31,7 @@ const ProcessPage: React.FC = () => {
     issues: []
   });
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [showCamera, setShowCamera] = useState<boolean>(false);
 
   // History for undo/redo
   const [history, setHistory] = useState<string[]>([]);
@@ -58,6 +60,21 @@ const ProcessPage: React.FC = () => {
 
       reader.readAsDataURL(file);
     }
+  };
+
+  const handleCameraCapture = (imageData: string) => {
+    setUploadedImage(imageData);
+    setProcessedImage(imageData);
+    
+    // Initialize history
+    setHistory([imageData]);
+    setHistoryIndex(0);
+    
+    // Close camera
+    setShowCamera(false);
+    
+    // Move to the next step
+    setStep(2);
   };
 
   const handleCropComplete = useCallback((croppedArea: CropArea) => {
@@ -130,11 +147,11 @@ const ProcessPage: React.FC = () => {
 
   // Modify the step change logic to capture the image before enhancement
   useEffect(() => {
-    if (step === 3 && processedImage && !preEnhancementImage) {
+    if (step === 5 && processedImage && !preEnhancementImage) {
       // Store the image right before entering the enhancement step
       setPreEnhancementImage(processedImage);
     }
-  }, [step, processedImage]);
+  }, [step, processedImage, preEnhancementImage]);
 
   // Modify your handleEnhanceChange function
   const handleEnhanceChange = async (options: EnhanceOptions) => {
@@ -265,9 +282,29 @@ const ProcessPage: React.FC = () => {
       case 1:
         return (
           <div className="max-w-2xl mx-auto">
-            <h2 className="text-2xl font-bold mb-6 text-center">Upload Your Photo</h2>
-            <ImageUploader onUpload={handleImageUpload} />
-            <p className="mt-4 text-sm text-gray-500 text-center">
+            <h2 className="text-2xl font-bold mb-6 text-center">Get Started</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="text-lg font-medium mb-3 text-center">Upload a Photo</h3>
+                <ImageUploader onUpload={handleImageUpload} />
+              </div>
+              <div>
+                <h3 className="text-lg font-medium mb-3 text-center">Take a Photo</h3>
+                <div 
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500 transition-colors"
+                  onClick={() => setShowCamera(true)}
+                >
+                  <div className="flex flex-col items-center justify-center">
+                    <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-2">
+                      <CameraIcon size={32} />
+                    </div>
+                    <span className="text-lg text-indigo-600 font-medium">Use Camera</span>
+                    <p className="mt-2 text-sm text-gray-500">Take a photo with your device camera</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p className="mt-6 text-sm text-gray-500 text-center">
               Upload a clear portrait photo with your face visible. For best results, use a photo with a plain background.
             </p>
           </div>
@@ -553,6 +590,14 @@ const ProcessPage: React.FC = () => {
           )}
         </div>
       </main>
+
+      {/* Inline Camera Modal */}
+      {showCamera && (
+        <InlineCamera 
+          onCapture={handleCameraCapture} 
+          onClose={() => setShowCamera(false)}
+        />
+      )}
 
       <Footer />
     </div>
