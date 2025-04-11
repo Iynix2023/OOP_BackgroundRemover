@@ -264,7 +264,7 @@ const PhotoSheetGenerator: React.FC<PhotoSheetGeneratorProps> = ({ processedImag
   
   return (
     <div className="border rounded-lg p-4">
-      <h3 className="font-medium text-gray-700 mb-3">Photo Sheet Generator</h3>
+      <h3 className="font-medium text-gray-700 mb-3">Photo Export Options</h3>
       
       <div className="space-y-3 mb-4">
         <div>
@@ -357,12 +357,12 @@ const PhotoSheetGenerator: React.FC<PhotoSheetGeneratorProps> = ({ processedImag
         {isGenerating ? (
           <>
             <RefreshCw size={18} className="mr-2 animate-spin" />
-            Generating Sheet...
+            Generating Layout...
           </>
         ) : (
           <>
             <RefreshCw size={18} className="mr-2" />
-            Generate Sheet
+            Generate Layout
           </>
         )}
       </button>
@@ -382,7 +382,15 @@ const PhotoSheetGenerator: React.FC<PhotoSheetGeneratorProps> = ({ processedImag
             className="w-full flex items-center justify-center px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
           >
             <Download size={18} className="mr-2" />
-            Download Sheet
+            Download
+          </button>
+          <button
+            className="w-full flex items-center justify-center px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-700 transition-colors"
+            onClick={() => {
+              alert("Save to Cloud functionality not implemented yet!");
+            }}
+          >
+            Save to Cloud
           </button>
         </div>
       )}

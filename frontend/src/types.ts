@@ -25,10 +25,6 @@ export interface BackgroundOptions {
   value: string; // color code or image URL
 }
 
-export interface ClothesOptions {
-  type: 'suit' | 'shirt' | 'blouse' | 'none';
-  color: string;
-}
 
 export interface EnhanceOptions {
   brightness: number;
@@ -37,9 +33,9 @@ export interface EnhanceOptions {
 }
 
 export interface ComplianceIssue {
-  type: 'face' | 'background' | 'size' | 'quality';
+  type: string;
   message: string;
-  severity: 'warning' | 'error';
+  severity: string;
 }
 
 export interface ComplianceResult {
