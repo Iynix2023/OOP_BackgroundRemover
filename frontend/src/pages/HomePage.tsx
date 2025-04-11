@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Camera, Users, Layers, UploadCloud as CloudUpload } from 'lucide-react';
+import { Camera, Layers, UploadCloud as CloudUpload } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
@@ -8,13 +8,8 @@ const HomePage: React.FC = () => {
   const features = [
     {
       icon: <Camera className="h-8 w-8 text-indigo-600" />,
-      title: 'Advanced Background Removal',
-      description: 'Automatically remove and replace backgrounds with solid colors or custom images using AI-powered technology.'
-    },
-    {
-      icon: <Users className="h-8 w-8 text-indigo-600" />,
-      title: 'Clothes Replacement',
-      description: 'Replace clothing with professional attire for formal ID photos using deep learning-based segmentation.'
+      title: 'Accurate Background Removal & Replacement',
+      description: 'Uses deep learning technology to precisely detect and isolate people in photos, allowing seamless background replacement with solid colors or custom images.'
     },
     {
       icon: <Layers className="h-8 w-8 text-indigo-600" />,
@@ -26,6 +21,7 @@ const HomePage: React.FC = () => {
       title: 'Cloud Integration',
       description: 'Save processed photos directly to Google Drive, Dropbox, or AWS S3 for easy access and sharing.'
     }
+    
   ];
 
   return (
@@ -62,7 +58,7 @@ const HomePage: React.FC = () => {
           <div className="container mx-auto px-4">
             <h2 className="text-3xl font-bold text-center mb-12">Key Features</h2>
             
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 justify-items-center">
               {features.map((feature, index) => (
                 <div key={index} className="bg-white p-6 rounded-lg shadow-md">
                   <div className="mb-4">{feature.icon}</div>

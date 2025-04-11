@@ -37,9 +37,9 @@ export interface EnhanceOptions {
 }
 
 export interface ComplianceIssue {
-  type: 'face' | 'background' | 'size' | 'quality';
+  type: string;
   message: string;
-  severity: 'warning' | 'error';
+  severity: string;
 }
 
 export interface ComplianceResult {
