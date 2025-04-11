@@ -1,7 +1,11 @@
-import { BackgroundOptions, EnhanceOptions, CropArea, ComplianceResult } from '../types';
-
-const API_URL = 'http://localhost:8080';
-
+import {
+  BackgroundOptions,
+  ClothesOptions,
+  EnhanceOptions,
+  CropArea,
+  ComplianceResult,
+} from "../types";
+const API_URL = "http://localhost:8080";
 // This service handles all image processing functionality
 class ImageProcessingService {
   // Process an image with background removal
@@ -9,11 +13,74 @@ class ImageProcessingService {
     imageData: string,
     options: BackgroundOptions
   ): Promise<string> {
+    try {
+      // Convert the base64/blob URL image to a file object
+      const imageFile = await this.dataURLtoFile(imageData, "image.png");
+
+      // Create form data for the API call
+      const formData = new FormData();
+      formData.append("image", imageFile);
+
+      // Add background color information
+      formData.append("backgroundType", options.type);
+      formData.append("backgroundColor", options.value);
+
+      // Send the request to the backend
+      const response = await fetch(`${API_URL}/process-image`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Background removal failed: ${response.status}`);
+      }
+
+      // Convert the response to a blob and create an object URL
+      const blob = await response.blob();
+      return URL.createObjectURL(blob);
+    } catch (error) {
+      console.error("Background removal error:", error);
+
+      // Fallback to client-side processing if server fails
+      return this.clientSideBackgroundRemoval(imageData, options);
+    }
+  }
+
+  // Add this helper method to convert dataURL to File object
+  private async dataURLtoFile(
+    dataURL: string,
+    filename: string
+  ): Promise<File> {
+    // If it's a blob URL, fetch and convert to base64 first
+    if (dataURL.startsWith("blob:")) {
+      const base64Data = await this.blobUrlToBase64(dataURL);
+      dataURL = base64Data;
+    }
+
+    // Split the base64 string to get the actual data
+    const arr = dataURL.split(",");
+    const mime = arr[0].match(/:(.*?);/)![1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+
+    return new File([u8arr], filename, { type: mime });
+  }
+
+  // Create a fallback method using the original client-side implementation
+  private clientSideBackgroundRemoval(
+    imageData: string,
+    options: BackgroundOptions
+  ): Promise<string> {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
 
         canvas.width = img.width;
         canvas.height = img.height;
@@ -27,12 +94,17 @@ class ImageProcessingService {
         ctx.drawImage(img, 0, 0);
 
         // Get image data for processing
-        const imageDataObj = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const imageDataObj = ctx.getImageData(
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
         const data = imageDataObj.data;
 
         // Simple background removal algorithm (green screen technique)
         // In a real app, this would use ML-based segmentation
-        if (options.type === 'color') {
+        if (options.type === "color") {
           // Fill with solid color
           const color = options.value;
           const r = parseInt(color.slice(1, 3), 16);
@@ -43,45 +115,54 @@ class ImageProcessingService {
           for (let i = 0; i < data.length; i += 4) {
             // Check if pixel is likely background (using simple luminance threshold)
             // This is a simplified algorithm - real apps would use ML models
-            const luminance = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-            if (luminance > 200) { // Assuming lighter pixels are background
-              data[i] = r;     // R
+            const luminance =
+              data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+            if (luminance > 200) {
+              // Assuming lighter pixels are background
+              data[i] = r; // R
               data[i + 1] = g; // G
               data[i + 2] = b; // B
               // Keep alpha as is
             }
           }
-        } else if (options.type === 'transparent') {
+        } else if (options.type === "transparent") {
           // Make background transparent
           for (let i = 0; i < data.length; i += 4) {
-            const luminance = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+            const luminance =
+              data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
             if (luminance > 200) {
               data[i + 3] = 0; // Set alpha to 0 (transparent)
             }
           }
-        } else if (options.type === 'image' && options.value) {
+        } else if (options.type === "image" && options.value) {
           // Load background image
           const bgImg = new Image();
           bgImg.onload = () => {
             // Create a new canvas for the background
-            const bgCanvas = document.createElement('canvas');
+            const bgCanvas = document.createElement("canvas");
             bgCanvas.width = canvas.width;
             bgCanvas.height = canvas.height;
-            const bgCtx = bgCanvas.getContext('2d');
+            const bgCtx = bgCanvas.getContext("2d");
 
             if (bgCtx) {
               // Draw background image scaled to fit
               bgCtx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
 
               // Get background image data
-              const bgImageData = bgCtx.getImageData(0, 0, canvas.width, canvas.height);
+              const bgImageData = bgCtx.getImageData(
+                0,
+                0,
+                canvas.width,
+                canvas.height
+              );
               const bgData = bgImageData.data;
 
               // Replace background pixels
               for (let i = 0; i < data.length; i += 4) {
-                const luminance = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+                const luminance =
+                  data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
                 if (luminance > 200) {
-                  data[i] = bgData[i];         // R
+                  data[i] = bgData[i]; // R
                   data[i + 1] = bgData[i + 1]; // G
                   data[i + 2] = bgData[i + 2]; // B
                   // Keep alpha as is
@@ -91,7 +172,7 @@ class ImageProcessingService {
 
             // Put the processed image data back
             ctx.putImageData(imageDataObj, 0, 0);
-            resolve(canvas.toDataURL('image/png'));
+            resolve(canvas.toDataURL("image/png"));
           };
           bgImg.src = options.value;
           return;
@@ -99,7 +180,7 @@ class ImageProcessingService {
 
         // Put the processed image data back
         ctx.putImageData(imageDataObj, 0, 0);
-        resolve(canvas.toDataURL('image/png'));
+        resolve(canvas.toDataURL("image/png"));
       };
 
       img.src = imageData;
@@ -117,25 +198,27 @@ class ImageProcessingService {
     const processedImageData = await this.blobUrlToBase64(imageData);
 
     const formData = new FormData();
-    formData.append('image', processedImageData);
-    formData.append('options', JSON.stringify(options));
+    formData.append("image", processedImageData);
+    formData.append("options", JSON.stringify(options));
 
     try {
-      const response = await fetch('http://localhost:8080/api/image/enhance', {
-        method: 'POST',
-        body: formData
+      const response = await fetch("http://localhost:8080/api/image/enhance", {
+        method: "POST",
+        body: formData,
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Server error:', errorText);
-        throw new Error(`Failed to enhance image: ${response.status} ${response.statusText}`);
+        console.error("Server error:", errorText);
+        throw new Error(
+          `Failed to enhance image: ${response.status} ${response.statusText}`
+        );
       }
 
       const blob = await response.blob();
       return URL.createObjectURL(blob);
     } catch (error) {
-      console.error('Error in enhanceImage service:', error);
+      console.error("Error in enhanceImage service:", error);
       throw error;
     }
   }
@@ -146,11 +229,11 @@ class ImageProcessingService {
       const processedImageData = await this.blobUrlToBase64(imageData);
 
       const formData = new FormData();
-      formData.append('image', processedImageData);
+      formData.append("image", processedImageData);
 
-      const response = await fetch('http://localhost:8080/api/image/analyze', {
-        method: 'POST',
-        body: formData
+      const response = await fetch("http://localhost:8080/api/image/analyze", {
+        method: "POST",
+        body: formData,
       });
 
       if (!response.ok) {
@@ -164,7 +247,7 @@ class ImageProcessingService {
         saturation: params.saturation || 0,
       };
     } catch (error) {
-      console.error('Error analyzing image:', error);
+      console.error("Error analyzing image:", error);
       // Fall back to default values
       return {
         brightness: 5,
@@ -175,16 +258,13 @@ class ImageProcessingService {
   }
 
   // Crop an image based on crop area
-  async cropImage(
-    imageData: string,
-    cropArea: CropArea
-  ): Promise<string> {
+  async cropImage(imageData: string, cropArea: CropArea): Promise<string> {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
         // First create a canvas for cropping
-        const cropCanvas = document.createElement('canvas');
-        const cropCtx = cropCanvas.getContext('2d');
+        const cropCanvas = document.createElement("canvas");
+        const cropCtx = cropCanvas.getContext("2d");
 
         if (!cropCtx) {
           resolve(imageData);
@@ -211,14 +291,14 @@ class ImageProcessingService {
         // Now create a second canvas for resizing to standard dimensions
         // Standard dimensions for ID photo (35mm × 45mm at 300 DPI)
         // 35mm = 413 pixels, 45mm = 531 pixels at 300 DPI
-        const standardWidth = Math.round(35 * 300 / 25.4); // 25.4mm = 1 inch
-        const standardHeight = Math.round(45 * 300 / 25.4);
+        const standardWidth = Math.round((35 * 300) / 25.4); // 25.4mm = 1 inch
+        const standardHeight = Math.round((45 * 300) / 25.4);
 
-        const resizeCanvas = document.createElement('canvas');
-        const resizeCtx = resizeCanvas.getContext('2d');
+        const resizeCanvas = document.createElement("canvas");
+        const resizeCtx = resizeCanvas.getContext("2d");
 
         if (!resizeCtx) {
-          resolve(cropCanvas.toDataURL('image/png'));
+          resolve(cropCanvas.toDataURL("image/png"));
           return;
         }
 
@@ -239,17 +319,17 @@ class ImageProcessingService {
           standardHeight
         );
 
-        resolve(resizeCanvas.toDataURL('image/png'));
+        resolve(resizeCanvas.toDataURL("image/png"));
       };
 
       img.src = imageData;
     });
   }
-
-  // For simplified batch processing (no enhancement)
-  async startSimpleBatchProcessing(
+  // For batch processing
+  async startBatchProcessing(
     files: File[],
     background: BackgroundOptions,
+    clothes: ClothesOptions,
     enhanceOptions: EnhanceOptions,
     exportFormat: string,
     exportSize: string
@@ -258,35 +338,43 @@ class ImageProcessingService {
       const formData = new FormData();
 
       // Add files to FormData
-      files.forEach(file => {
-        formData.append('files', file);
+      files.forEach((file) => {
+        formData.append("files", file);
       });
 
       // Add background options
-      formData.append('backgroundType', background.type);
-      formData.append('backgroundValue', background.value);
-      formData.append('brightness', enhanceOptions.brightness.toString());
-      formData.append('contrast', enhanceOptions.contrast.toString());
-      formData.append('saturation', enhanceOptions.saturation.toString());
+      formData.append("backgroundType", background.type);
+      formData.append("backgroundValue", background.value);
+
+      // Add clothes options if provided
+      if (clothes && clothes.type) {
+        formData.append("clothesType", clothes.type);
+        formData.append("clothesColor", clothes.color);
+      }
+
+      // Add enhancement options
+      formData.append("brightness", enhanceOptions.brightness.toString());
+      formData.append("contrast", enhanceOptions.contrast.toString());
+      formData.append("saturation", enhanceOptions.saturation.toString());
 
       // Add export options
-      formData.append('exportFormat', exportFormat);
-      formData.append('exportSize', exportSize);
+      formData.append("exportFormat", exportFormat);
+      formData.append("exportSize", exportSize);
 
-      const response = await fetch('/api/batch/process', {
-        method: 'POST',
+      const response = await fetch("/api/batch/process", {
+        method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Error response:', errorText);
+        console.error("Error response:", errorText);
         throw new Error(`Server error: ${response.status}`);
       }
 
       return await response.json();
     } catch (error) {
-      console.error('Batch processing error:', error);
+      console.error("Batch processing error:", error);
       throw error;
     }
   }
@@ -304,7 +392,7 @@ class ImageProcessingService {
 
       return await response.json();
     } catch (error) {
-      console.error('Error checking batch status:', error);
+      console.error("Error checking batch status:", error);
       throw error;
     }
   }
@@ -312,9 +400,14 @@ class ImageProcessingService {
   /**
    * Get a processed image result
    */
-  async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
+  async getProcessedImage(
+    batchId: string,
+    imageIndex: number
+  ): Promise<string> {
     try {
-      const response = await fetch(`/api/batch/result/${batchId}/${imageIndex}`);
+      const response = await fetch(
+        `/api/batch/result/${batchId}/${imageIndex}`
+      );
 
       if (!response.ok) {
         throw new Error(`Failed to get processed image: ${response.status}`);
@@ -324,18 +417,17 @@ class ImageProcessingService {
       const blob = await response.blob();
       return URL.createObjectURL(blob);
     } catch (error) {
-      console.error('Error getting processed image:', error);
+      console.error("Error getting processed image:", error);
       throw error;
     }
   }
-
   // Check if the photo meets compliance requirements
   checkCompliance(imageData: string): Promise<ComplianceResult> {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
 
         canvas.width = img.width;
         canvas.height = img.height;
@@ -343,11 +435,13 @@ class ImageProcessingService {
         if (!ctx) {
           resolve({
             isCompliant: false,
-            issues: [{
-              type: 'quality',
-              message: 'Unable to analyze image',
-              severity: 'error'
-            }]
+            issues: [
+              {
+                type: "quality",
+                message: "Unable to analyze image",
+                severity: "error",
+              },
+            ],
           });
           return;
         }
@@ -356,27 +450,33 @@ class ImageProcessingService {
         ctx.drawImage(img, 0, 0);
 
         // Get image data for analysis
-        const imageDataObj = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const imageDataObj = ctx.getImageData(
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
         const data = imageDataObj.data;
 
         const issues = [];
 
         // Check aspect ratio
         const aspectRatio = canvas.width / canvas.height;
-        if (Math.abs(aspectRatio - (35 / 45)) > 0.1) {
+        if (Math.abs(aspectRatio - 35 / 45) > 0.1) {
           issues.push({
-            type: 'size',
-            message: 'Aspect ratio does not match standard ID photo requirements (35:45)',
-            severity: 'warning'
+            type: "size",
+            message:
+              "Aspect ratio does not match standard ID photo requirements (35:45)",
+            severity: "warning",
           });
         }
 
         // Check resolution
         if (canvas.width < 400 || canvas.height < 500) {
           issues.push({
-            type: 'quality',
-            message: 'Image resolution is too low for high-quality printing',
-            severity: 'warning'
+            type: "quality",
+            message: "Image resolution is too low for high-quality printing",
+            severity: "warning",
           });
         }
 
@@ -400,9 +500,9 @@ class ImageProcessingService {
         const facePixelThreshold = (canvas.width * canvas.height) / 20; // 5% of image
         if (facePixelsCount < facePixelThreshold) {
           issues.push({
-            type: 'face',
-            message: 'Face not clearly visible or too small',
-            severity: 'error'
+            type: "face",
+            message: "Face not clearly visible or too small",
+            severity: "error",
           });
         }
 
@@ -426,15 +526,15 @@ class ImageProcessingService {
 
         if (backgroundVariation > 5000) {
           issues.push({
-            type: 'background',
-            message: 'Background is not uniform',
-            severity: 'warning'
+            type: "background",
+            message: "Background is not uniform",
+            severity: "warning",
           });
         }
 
         resolve({
           isCompliant: issues.length === 0,
-          issues
+          issues,
         });
       };
 
@@ -445,7 +545,7 @@ class ImageProcessingService {
   // Add this helper method to your ImageProcessingService class
   private async blobUrlToBase64(url: string): Promise<string> {
     // If this is already a data URL, return it
-    if (url.startsWith('data:')) {
+    if (url.startsWith("data:")) {
       return url;
     }
 
@@ -460,34 +560,7 @@ class ImageProcessingService {
         reader.readAsDataURL(blob);
       });
     } catch (error) {
-      console.error('Error converting blob URL to base64:', error);
-      throw error;
-    }
-  }
-
-  // Save image to cloud
-  async saveToCloud(imageData: string): Promise<void> {
-    try {
-      // Convert blob URL to base64 if needed
-      const processedImageData = await this.blobUrlToBase64(imageData);
-
-      const formData = new FormData();
-      formData.append('image', processedImageData);
-
-      const response = await fetch('http://localhost:8080/process-image', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Server error:', errorText);
-        throw new Error(`Failed to save image to cloud: ${response.status} ${response.statusText}`);
-      }
-
-      console.log('Image saved to cloud successfully');
-    } catch (error) {
-      console.error('Error saving image to cloud:', error);
+      console.error("Error converting blob URL to base64:", error);
       throw error;
     }
   }
