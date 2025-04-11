@@ -41,7 +41,7 @@ const BackgroundSelector: React.FC<BackgroundSelectorProps> = ({
       <h3 className="font-medium text-gray-700">Background Options</h3>
       
       <div className="space-y-2">
-        <p className="text-sm text-gray-600">Solid Colors</p>
+        <p className="text-sm text-gray-600">Apply a background color</p>
         <div className="flex space-x-2">
           {colorOptions.map((color) => (
             <button
@@ -59,7 +59,7 @@ const BackgroundSelector: React.FC<BackgroundSelectorProps> = ({
         </div>
       </div>
       
-      <div>
+      {/* <div>
         <p className="text-sm text-gray-600 mb-2">Custom Background</p>
         <label className="flex items-center justify-center px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 cursor-pointer">
           <span>Upload Image</span>
@@ -83,7 +83,7 @@ const BackgroundSelector: React.FC<BackgroundSelectorProps> = ({
         >
           Transparent Background
         </button>
-      </div>
+      </div> */}
     </div>
   );
 };

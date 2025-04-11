@@ -38,7 +38,10 @@ public class ImageProcessController {
     private ImageProcessingService_v2 imageProcessingService_v2;
 
     @PostMapping("/process-image")
-    public ResponseEntity<byte[]> processImage(@RequestParam("image") MultipartFile file) {
+    public ResponseEntity<byte[]> processImage(
+            @RequestParam("image") MultipartFile file,
+            @RequestParam(value = "backgroundType", defaultValue = "color") String backgroundType,
+            @RequestParam(value = "backgroundColor", defaultValue = "#AADBE6") String backgroundColor) {
         try {
             if (file.isEmpty()) {
                 logger.error("Uploaded file is empty");
@@ -46,13 +49,16 @@ public class ImageProcessController {
             }
 
             logger.info("Processing image: " + file.getOriginalFilename());
+            logger.info("Background type: " + backgroundType + ", color: " + backgroundColor);
 
             // Check if file is JPG/JPEG and convert if needed
             MultipartFile processableFile = imageProcessingService_v2.ensurePngFormat(file);
 
-            // Use the properly formatted file
-            // Change to imageProcessingService to remove using grabCut
-            byte[] processedImage = imageProcessingService_v2.removeBackground(processableFile);
+            // Use the properly formatted file with background options
+            byte[] processedImage = imageProcessingService_v2.removeBackground(
+                    processableFile,
+                    backgroundType,
+                    backgroundColor);
 
             if (processedImage == null || processedImage.length == 0) {
                 logger.error("Processed image is null or empty");

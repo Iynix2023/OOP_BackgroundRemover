@@ -49,69 +49,197 @@ public class ImageProcessingService_v2 {
      * @throws IOException if processing fails
      */
     public byte[] removeBackground(MultipartFile file) throws IOException {
-        // Convert the uploaded file to a DJL Image
-        Image img = ImageFactory.getInstance().fromInputStream(file.getInputStream());
+        return removeBackground(file, "color", "#AADBE6"); // Light blue default
+    }
 
-        // URL of the pre-trained DeepLabV3 model packaged as a zip file
-        String url = "djl://ai.djl.pytorch/deeplabv3/0.0.1/deeplabv3";
+    /**
+     * Removes the background from the input image, centers the person, and applies
+     * the specified
+     * background color or type
+     *
+     * @param file            the uploaded image file
+     * @param backgroundType  the type of background to apply (color, transparent,
+     *                        etc.)
+     * @param backgroundColor the color to use when backgroundType is "color"
+     * @return a byte array containing the processed image in PNG format
+     * @throws IOException if processing fails
+     */
+    public byte[] removeBackground(
+            MultipartFile file,
+            String backgroundType,
+            String backgroundColor) throws IOException {
 
-        // Build the criteria to load the model with the semantic segmentation
-        // translator
-        Criteria<Image, CategoryMask> criteria = Criteria.builder()
-                .setTypes(Image.class, CategoryMask.class)
-                .optModelUrls(url)
-                .optTranslatorFactory(new SemanticSegmentationTranslatorFactory())
-                .optEngine("PyTorch")
-                .optProgress(new ProgressBar())
-                .build();
+        try {
+            // Convert the uploaded file to a DJL Image
+            Image img = ImageFactory.getInstance().fromInputStream(file.getInputStream());
 
-        try (ZooModel<Image, CategoryMask> model = criteria.loadModel();
-                Predictor<Image, CategoryMask> predictor = model.newPredictor()) {
+            // URL of the pre-trained DeepLabV3 model packaged as a zip file
+            String url = "djl://ai.djl.pytorch/deeplabv3/0.0.1/deeplabv3";
 
-            // Predict the segmentation mask
-            CategoryMask mask = predictor.predict(img);
-            // System.out.println("Mask prediction complete. Categories found: " +
-            // mask.toJson());
+            // Build the criteria to load the model
+            Criteria<Image, CategoryMask> criteria = Criteria.builder()
+                    .setTypes(Image.class, CategoryMask.class)
+                    .optModelUrls(url)
+                    .optTranslatorFactory(new SemanticSegmentationTranslatorFactory())
+                    .optEngine("PyTorch")
+                    .optProgress(new ProgressBar())
+                    .build();
 
-            Image personMaskImage = mask.getMaskImage(img, 15);
+            try (ZooModel<Image, CategoryMask> model = criteria.loadModel();
+                    Predictor<Image, CategoryMask> predictor = model.newPredictor()) {
 
-            // Resize the extracted person image to match the original dimensions
-            personMaskImage = personMaskImage.resize(img.getWidth(), img.getHeight(), true);
+                // Predict the segmentation mask
+                CategoryMask mask = predictor.predict(img);
 
-            // Create a background Image with static color
-            // Create a new background image with the same dimensions as the original image
-            BufferedImage bgBufferedImage = new BufferedImage(
-                    img.getWidth(),
-                    img.getHeight(),
-                    BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g2d = bgBufferedImage.createGraphics();
-            // Set the color to light blue (RGB: 173, 216, 230) and fill the background
-            g2d.setColor(new Color(173, 216, 230));
-            g2d.fillRect(0, 0, img.getWidth(), img.getHeight());
-            g2d.dispose();
+                // Get the original image as BufferedImage
+                BufferedImage originalBuffered = (BufferedImage) img.getWrappedImage();
+                int imgWidth = originalBuffered.getWidth();
+                int imgHeight = originalBuffered.getHeight();
 
-            // Convert the BufferedImage to a DJL Image
-            Image background = ImageFactory.getInstance().fromImage(bgBufferedImage);
+                // Extract person from the original image using the mask
+                BufferedImage personOnly = new BufferedImage(
+                        imgWidth,
+                        imgHeight,
+                        BufferedImage.TYPE_INT_ARGB);
 
-            // Get the background
-            // Image background = ImageFactory.getInstance().fromFile(Paths.get(
-            // "C:\\Users\\limke_msg9rxa\\Downloads\\Coding_Projects\\Java_Projects\\demo\\src\\main\\resources\\image\\lightblue.png"));
+                // Create the person mask image and convert to BufferedImage
+                Image personMaskImage = mask.getMaskImage(img, 15); // 15 is the category ID for person
 
-            // Now draw the extracted person with transparency onto the background
-            background.drawImage(personMaskImage, true);
+                // Ensure the mask is properly sized to match the original image
+                personMaskImage = personMaskImage.resize(imgWidth, imgHeight, true);
+                BufferedImage maskBuffered = (BufferedImage) personMaskImage.getWrappedImage();
 
-            // Save the final composited image
-            // try (FileOutputStream fos = new FileOutputStream("debug_final_result.png")) {
-            // background.save(fos, "png");
-            // System.out.println("Saved final composited image to debug_final_result.png");
-            // }
+                // Extract the person from original image using mask
+                for (int y = 0; y < imgHeight; y++) {
+                    for (int x = 0; x < imgWidth; x++) {
+                        // Safety check for array bounds
+                        if (x >= maskBuffered.getWidth() || y >= maskBuffered.getHeight()) {
+                            continue;
+                        }
 
-            // Convert the final composited image to a byte array in JPEG format.
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            background.save(baos, "png");
-            return baos.toByteArray();
+                        int maskPixel = maskBuffered.getRGB(x, y);
+                        // Check if this pixel is part of the person in the mask (not transparent)
+                        if ((maskPixel >> 24) != 0) {
+                            // Copy pixel from original image
+                            personOnly.setRGB(x, y, originalBuffered.getRGB(x, y));
+                        }
+                    }
+                }
 
+                // Calculate bounding box of the person in the extracted image
+                int left = imgWidth;
+                int right = 0;
+                int top = imgHeight;
+                int bottom = 0;
+                boolean personFound = false;
+
+                // Find the bounding box coordinates
+                for (int y = 0; y < imgHeight; y++) {
+                    for (int x = 0; x < imgWidth; x++) {
+                        int pixel = personOnly.getRGB(x, y);
+                        // Check if this pixel is not transparent (part of the person)
+                        if ((pixel >> 24) != 0) {
+                            left = Math.min(left, x);
+                            right = Math.max(right, x);
+                            top = Math.min(top, y);
+                            bottom = Math.max(bottom, y);
+                            personFound = true;
+                        }
+                    }
+                }
+
+                // Create background with the specified color or transparent
+                BufferedImage resultImage = new BufferedImage(
+                        imgWidth,
+                        imgHeight,
+                        BufferedImage.TYPE_INT_ARGB);
+
+                Graphics2D g2d = resultImage.createGraphics();
+
+                if (!"transparent".equals(backgroundType)) {
+                    // Get background color
+                    Color bgColor;
+                    try {
+                        // Parse the color from the hex string
+                        if (backgroundColor.startsWith("#")) {
+                            bgColor = Color.decode(backgroundColor);
+                        } else {
+                            bgColor = Color.decode("#" + backgroundColor);
+                        }
+                    } catch (NumberFormatException e) {
+                        // Default to light blue if parsing fails
+                        logger.warn("Failed to parse background color: " + backgroundColor + ". Using default.");
+                        bgColor = new Color(173, 216, 230); // Light blue default
+                    }
+
+                    // Fill with background color
+                    g2d.setColor(bgColor);
+                    g2d.fillRect(0, 0, imgWidth, imgHeight);
+                }
+                g2d.dispose();
+
+                // If no person is detected, use the basic approach
+                if (!personFound || left >= right || top >= bottom) {
+                    logger.info("No person detected for centering, using basic background replacement");
+
+                    // Convert to DJL image and draw person
+                    Image background = ImageFactory.getInstance().fromImage(resultImage);
+                    background.drawImage(personMaskImage, true);
+
+                    // Convert to byte array and return
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    background.save(baos, "png");
+                    return baos.toByteArray();
+                }
+
+                // If person is detected, center them
+
+                // Ensure bounding box is within image bounds
+                left = Math.max(0, left);
+                top = Math.max(0, top);
+                right = Math.min(imgWidth - 1, right);
+                bottom = Math.min(imgHeight - 1, bottom);
+
+                // Calculate the width and height of the person
+                int personWidth = right - left + 1;
+                int personHeight = bottom - top + 1;
+
+                // Calculate centering offsets
+                int xOffset = (imgWidth - personWidth) / 2 - left;
+                int yOffset = (imgHeight - personHeight) / 2 - top;
+
+                // Copy the person pixels to the centered position
+                for (int y = top; y <= bottom; y++) {
+                    for (int x = left; x <= right; x++) {
+                        // Get the pixel from the extracted person image
+                        int pixelColor = personOnly.getRGB(x, y);
+
+                        // Skip transparent pixels
+                        if ((pixelColor >> 24) == 0) {
+                            continue;
+                        }
+
+                        // Calculate destination coordinates with offset
+                        int destX = x + xOffset;
+                        int destY = y + yOffset;
+
+                        // Ensure we're within bounds of the output image
+                        if (destX >= 0 && destX < imgWidth && destY >= 0 && destY < imgHeight) {
+                            // Copy the pixel to the centered position
+                            resultImage.setRGB(destX, destY, pixelColor);
+                        }
+                    }
+                }
+
+                // Convert the final image to a byte array
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                ImageIO.write(resultImage, "png", baos);
+                return baos.toByteArray();
+            }
         } catch (ModelException | TranslateException e) {
+            throw new IOException("Error processing image", e);
+        } catch (Exception e) {
+            logger.error("Unexpected error in removeBackground: " + e.getMessage(), e);
             throw new IOException("Error processing image", e);
         }
     }
