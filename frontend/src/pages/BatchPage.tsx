@@ -5,10 +5,9 @@ import Footer from '../components/Footer';
 import ImageUploader from '../components/ImageUploader';
 import BackgroundSelector from '../components/BackgroundSelector';
 import InlineCamera from '../components/InlineCamera';
-import { BackgroundOptions } from '../types';
+import { BackgroundOptions, EnhanceOptions, ExportSize } from '../types';
 import imageProcessingService from '../services/imageProcessingService';
 import EnhancementControls from '../components/EnhancementControls';
-import { EnhanceOptions } from '../types';
 
 interface ProcessedBatchImage {
   original: string;
@@ -23,10 +22,12 @@ const BatchPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [processedCount, setProcessedCount] = useState<number>(0);
   const [exportFormat, setExportFormat] = useState<string>('jpeg');
-  const [exportSize, setExportSize] = useState<string>('35x45');
+  const [exportSize, setExportSize] = useState<string>(ExportSize.STANDARD_35x45);
+  const [exportLayout, setExportLayout] = useState<string>('single');
   const [showCamera, setShowCamera] = useState<boolean>(false);
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
   const [enhanceOptions, setEnhanceOptions] = useState<EnhanceOptions>({ brightness: 0, contrast: 0, saturation: 0 });
+  const [customDimensions, setCustomDimensions] = useState({ width: 160, height: 120 });
 
   // Check batch status periodically
   useEffect(() => {
@@ -81,6 +82,10 @@ const BatchPage: React.FC = () => {
     setBackground(options);
   };
 
+  const handleEnhanceChange = (options: EnhanceOptions) => {
+    setEnhanceOptions(options);
+  };
+
   const removeImage = (index: number) => {
     const newImages = [...uploadedImages];
     newImages.splice(index, 1);
@@ -114,15 +119,47 @@ const BatchPage: React.FC = () => {
         })
       );
 
-      // Start batch processing with simplified parameters
-      const result = await imageProcessingService.startSimpleBatchProcessing(
-        files,
-        background,
-        enhanceOptions,
-        exportFormat,
-        exportSize
-      );
+      // Prepare the form data
+      const formData = new FormData();
+      
+      // Add files to FormData
+      files.forEach(file => {
+        formData.append('files', file);
+      });
+      
+      // Add background options
+      formData.append('backgroundType', background.type);
+      formData.append('backgroundValue', background.value);
+      
+      // Add enhancement options
+      formData.append('brightness', enhanceOptions.brightness.toString());
+      formData.append('contrast', enhanceOptions.contrast.toString());
+      formData.append('saturation', enhanceOptions.saturation.toString());
+      
+      // Add export options
+      formData.append('exportFormat', exportFormat);
+      formData.append('exportSize', exportSize);
+      formData.append('exportLayout', exportLayout);
+      
+      // Add custom dimensions if needed
+      if (exportSize === ExportSize.CUSTOM) {
+        formData.append('customWidth', customDimensions.width.toString());
+        formData.append('customHeight', customDimensions.height.toString());
+      }
 
+      // Send the request
+      const response = await fetch('/api/batch/process', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const result = await response.json();
       const batchId = result.batchId;
       setCurrentBatchId(batchId);
 
@@ -215,6 +252,21 @@ const BatchPage: React.FC = () => {
         document.body.removeChild(link);
       }
     });
+  };
+
+  // Handle custom dimension changes
+  const handleCustomWidthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const width = parseInt(e.target.value, 10);
+    if (!isNaN(width) && width > 0) {
+      setCustomDimensions(prev => ({ ...prev, width }));
+    }
+  };
+
+  const handleCustomHeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const height = parseInt(e.target.value, 10);
+    if (!isNaN(height) && height > 0) {
+      setCustomDimensions(prev => ({ ...prev, height }));
+    }
   };
 
   return (
@@ -363,7 +415,7 @@ const BatchPage: React.FC = () => {
                     <h3 className="font-medium text-gray-700 mb-3">Image Enhancement</h3>
                     <EnhancementControls
                       options={enhanceOptions}
-                      onChange={setEnhanceOptions}
+                      onChange={handleEnhanceChange}
                       preEnhancementImage={null}
                     />
                   </div>
@@ -382,15 +434,59 @@ const BatchPage: React.FC = () => {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm text-gray-600 mb-1">Size</label>
+                        <label className="block text-sm text-gray-600 mb-1">Photo Size</label>
                         <select
                           className="w-full border border-gray-300 rounded-md px-3 py-2"
                           value={exportSize}
                           onChange={(e) => setExportSize(e.target.value)}
                         >
-                          <option value="35x45">35x45 mm (Standard)</option>
-                          <option value="2x2">2x2 inch (US Passport)</option>
-                          <option value="custom">Custom Size</option>
+                          <option value={ExportSize.STANDARD_35x45}>Singapore NRIC/Passport (35x45mm)</option>
+                          <option value={ExportSize.US_PASSPORT_2x2}>US Passport/Visa (2x2 inch)</option>
+                          <option value={ExportSize.CHINA_VISA}>China Visa (33x48mm)</option>
+                          <option value={ExportSize.MALAYSIA_PASSPORT}>Malaysia Visa/Passport (35x50mm)</option>
+                          <option value={ExportSize.AUSTRALIA_VISA}>Australia Visa (35x45mm)</option>
+                          <option value={ExportSize.INDIA_PASSPORT}>Indian Passport/Visa (35x35mm)</option>
+                          <option value={ExportSize.SMU_ID}>SMU Student ID</option>
+                          <option value={ExportSize.CUSTOM}>Custom Size</option>
+                        </select>
+                      </div>
+
+                      {/* Custom size inputs - only show when custom size is selected */}
+                      {exportSize === ExportSize.CUSTOM && (
+                        <div className="mt-2 grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">Width (px)</label>
+                            <input
+                              type="number"
+                              className="w-full border border-gray-300 rounded-md px-3 py-2"
+                              value={customDimensions.width}
+                              onChange={handleCustomWidthChange}
+                              min="1"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm text-gray-600 mb-1">Height (px)</label>
+                            <input
+                              type="number"
+                              className="w-full border border-gray-300 rounded-md px-3 py-2"
+                              value={customDimensions.height}
+                              onChange={handleCustomHeightChange}
+                              min="1"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-sm text-gray-600 mb-1">Layout</label>
+                        <select
+                          className="w-full border border-gray-300 rounded-md px-3 py-2"
+                          value={exportLayout}
+                          onChange={(e) => setExportLayout(e.target.value)}
+                        >
+                          <option value="single">Single Photo</option>
+                          <option value="2x2">2x2 Grid</option>
+                          <option value="4x6">4x6 Grid</option>
                         </select>
                       </div>
                     </div>
