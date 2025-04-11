@@ -145,13 +145,15 @@ const EnhancementControls: React.FC<EnhancementControlsProps> = ({
         >
           Reset All
         </button>
-        <button
-          type="button"
-          onClick={handleAutoEnhance}
-          className="text-sm text-white bg-indigo-600 hover:bg-indigo-700 px-2 py-1 rounded"
-        >
-          Auto Enhance
-        </button>
+        {preEnhancementImage && (
+          <button
+            type="button"
+            onClick={handleAutoEnhance}
+            className="text-sm text-white bg-indigo-600 hover:bg-indigo-700 px-2 py-1 rounded"
+          >
+            Auto Enhance
+          </button>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,7 @@
-import { BackgroundOptions, ClothesOptions, EnhanceOptions, CropArea, ComplianceResult } from '../types';
-const API_URL = 'http://localhost:8080'; 
+import { BackgroundOptions, EnhanceOptions, CropArea, ComplianceResult } from '../types';
+
+const API_URL = 'http://localhost:8080';
+
 // This service handles all image processing functionality
 class ImageProcessingService {
   // Process an image with background removal
@@ -104,131 +106,32 @@ class ImageProcessingService {
     });
   }
 
-  // Apply clothes replacement
-  async replaceClothes(
-    imageData: string,
-    options: ClothesOptions
-  ): Promise<string> {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-
-        canvas.width = img.width;
-        canvas.height = img.height;
-
-        if (!ctx) {
-          resolve(imageData);
-          return;
-        }
-
-        // Draw the original image
-        ctx.drawImage(img, 0, 0);
-
-        // Get image data for processing
-        const imageDataObj = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageDataObj.data;
-
-        // Simple clothes replacement (in a real app, this would use ML-based segmentation)
-        // Detect the lower part of the image (assuming it contains clothes)
-        const lowerThird = Math.floor(canvas.height * 0.4); // Start from 40% down
-
-        // Parse the color
-        const color = options.color;
-        const r = parseInt(color.slice(1, 3), 16);
-        const g = parseInt(color.slice(3, 5), 16);
-        const b = parseInt(color.slice(5, 7), 16);
-
-        // Apply color to the lower part with some blending
-        for (let y = lowerThird; y < canvas.height; y++) {
-          for (let x = 0; x < canvas.width; x++) {
-            const idx = (y * canvas.width + x) * 4;
-
-            // Skip pixels that are likely background (very light)
-            const luminance = (data[idx] * 0.299 + data[idx + 1] * 0.587 + data[idx + 2] * 0.114);
-            if (luminance > 240) continue;
-
-            // Apply color with blending to maintain texture
-            data[idx] = Math.floor((data[idx] * 0.3) + (r * 0.7));     // R
-            data[idx + 1] = Math.floor((data[idx + 1] * 0.3) + (g * 0.7)); // G
-            data[idx + 2] = Math.floor((data[idx + 2] * 0.3) + (b * 0.7)); // B
-            // Alpha remains unchanged
-          }
-        }
-
-        // Add collar based on clothes type
-        if (options.type === 'suit') {
-          // Draw a simple suit collar
-          const collarY = Math.floor(canvas.height * 0.4);
-          const collarWidth = Math.floor(canvas.width * 0.2);
-
-          ctx.putImageData(imageDataObj, 0, 0);
-
-          // Draw collar
-          ctx.fillStyle = '#FFFFFF'; // White shirt
-          ctx.beginPath();
-          ctx.moveTo(canvas.width / 2 - collarWidth, collarY);
-          ctx.lineTo(canvas.width / 2, collarY + collarWidth);
-          ctx.lineTo(canvas.width / 2 + collarWidth, collarY);
-          ctx.closePath();
-          ctx.fill();
-
-          return resolve(canvas.toDataURL('image/png'));
-        } else if (options.type === 'shirt' || options.type === 'blouse') {
-          // Add a simple collar
-          const collarY = Math.floor(canvas.height * 0.35);
-          const collarWidth = Math.floor(canvas.width * 0.15);
-
-          ctx.putImageData(imageDataObj, 0, 0);
-
-          // Draw collar
-          ctx.fillStyle = '#FFFFFF'; // White collar
-          ctx.beginPath();
-          ctx.moveTo(canvas.width / 2 - collarWidth, collarY);
-          ctx.lineTo(canvas.width / 2, collarY + collarWidth / 2);
-          ctx.lineTo(canvas.width / 2 + collarWidth, collarY);
-          ctx.closePath();
-          ctx.fill();
-
-          return resolve(canvas.toDataURL('image/png'));
-        }
-
-        // Put the processed image data back
-        ctx.putImageData(imageDataObj, 0, 0);
-        resolve(canvas.toDataURL('image/png'));
-      };
-
-      img.src = imageData;
-    });
-  }
-
   // Apply image enhancements
   async enhanceImage(
     imageData: string,
     options: EnhanceOptions
   ): Promise<string> {
     console.log("Sending enhance request with options:", options);
-    
+
     // Convert blob URL to base64 if needed
     const processedImageData = await this.blobUrlToBase64(imageData);
-    
+
     const formData = new FormData();
     formData.append('image', processedImageData);
     formData.append('options', JSON.stringify(options));
-    
+
     try {
       const response = await fetch('http://localhost:8080/api/image/enhance', {
         method: 'POST',
         body: formData
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Server error:', errorText);
         throw new Error(`Failed to enhance image: ${response.status} ${response.statusText}`);
       }
-      
+
       const blob = await response.blob();
       return URL.createObjectURL(blob);
     } catch (error) {
@@ -241,50 +144,34 @@ class ImageProcessingService {
     try {
       // Convert blob URL to base64 if needed
       const processedImageData = await this.blobUrlToBase64(imageData);
-      
+
       const formData = new FormData();
       formData.append('image', processedImageData);
-      
+
       const response = await fetch('http://localhost:8080/api/image/analyze', {
         method: 'POST',
         body: formData
       });
-      
+
       if (!response.ok) {
         throw new Error(`Analysis failed: ${response.status}`);
       }
-      
+
       const params = await response.json();
       return {
         brightness: params.brightness || 0,
         contrast: params.contrast || 0,
         saturation: params.saturation || 0,
-
       };
     } catch (error) {
       console.error('Error analyzing image:', error);
       // Fall back to default values
       return {
         brightness: 5,
-        contrast: 10, 
+        contrast: 10,
         saturation: 5,
       };
     }
-  }
-
-  // Helper function to clamp values between 0-255
-  private clamp(value: number): number {
-    return Math.max(0, Math.min(255, Math.round(value)));
-  }
-
-  // Helper function for HSL to RGB conversion
-  private hue2rgb(p: number, q: number, t: number): number {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
   }
 
   // Crop an image based on crop area
@@ -358,97 +245,90 @@ class ImageProcessingService {
       img.src = imageData;
     });
   }
-// For batch processing
-async startBatchProcessing(
-  files: File[],
-  background: BackgroundOptions,
-  clothes: ClothesOptions,
-  enhanceOptions: EnhanceOptions,
-  exportFormat: string,
-  exportSize: string
-): Promise<{ batchId: string }> {
-  try {
-    const formData = new FormData();
-    
-    // Add files to FormData
-    files.forEach(file => {
-      formData.append('files', file);
-    });
-    
-    // Add background options
-    formData.append('backgroundType', background.type);
-    formData.append('backgroundValue', background.value);
-    
-    // Add clothes options if provided
-    if (clothes && clothes.type) {
-      formData.append('clothesType', clothes.type);
-      formData.append('clothesColor', clothes.color);
-    }
-    
-    // Add enhancement options
-    formData.append('brightness', enhanceOptions.brightness.toString());
-    formData.append('contrast', enhanceOptions.contrast.toString());
-    formData.append('saturation', enhanceOptions.saturation.toString());
-    
-    // Add export options
-    formData.append('exportFormat', exportFormat);
-    formData.append('exportSize', exportSize);
-    
-    const response = await fetch('/api/batch/process', {
-      method: 'POST',
-      body: formData,
-    });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Error response:', errorText);
-      throw new Error(`Server error: ${response.status}`);
-    }
+  // For simplified batch processing (no enhancement)
+  async startSimpleBatchProcessing(
+    files: File[],
+    background: BackgroundOptions,
+    enhanceOptions: EnhanceOptions,
+    exportFormat: string,
+    exportSize: string
+  ): Promise<{ batchId: string }> {
+    try {
+      const formData = new FormData();
 
-    return await response.json();
-  } catch (error) {
-    console.error('Batch processing error:', error);
-    throw error;
+      // Add files to FormData
+      files.forEach(file => {
+        formData.append('files', file);
+      });
+
+      // Add background options
+      formData.append('backgroundType', background.type);
+      formData.append('backgroundValue', background.value);
+      formData.append('brightness', enhanceOptions.brightness.toString());
+      formData.append('contrast', enhanceOptions.contrast.toString());
+      formData.append('saturation', enhanceOptions.saturation.toString());
+
+      // Add export options
+      formData.append('exportFormat', exportFormat);
+      formData.append('exportSize', exportSize);
+
+      const response = await fetch('/api/batch/process', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Batch processing error:', error);
+      throw error;
+    }
   }
-}
 
-/**
- * Get the status of a batch processing job
- */
-async getBatchStatus(batchId: string): Promise<any> {
-  try {
-    const response = await fetch(`/api/batch/status/${batchId}`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to get batch status: ${response.status}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error checking batch status:', error);
-    throw error;
-  }
-}
+  /**
+   * Get the status of a batch processing job
+   */
+  async getBatchStatus(batchId: string): Promise<any> {
+    try {
+      const response = await fetch(`/api/batch/status/${batchId}`);
 
-/**
- * Get a processed image result
- */
-async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
-  try {
-    const response = await fetch(`/api/batch/result/${batchId}/${imageIndex}`);
-    
-    if (!response.ok) {
-      throw new Error(`Failed to get processed image: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`Failed to get batch status: ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error checking batch status:', error);
+      throw error;
     }
-    
-    // Convert response to blob and create an object URL
-    const blob = await response.blob();
-    return URL.createObjectURL(blob);
-  } catch (error) {
-    console.error('Error getting processed image:', error);
-    throw error;
   }
-}
+
+  /**
+   * Get a processed image result
+   */
+  async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
+    try {
+      const response = await fetch(`/api/batch/result/${batchId}/${imageIndex}`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to get processed image: ${response.status}`);
+      }
+
+      // Convert response to blob and create an object URL
+      const blob = await response.blob();
+      return URL.createObjectURL(blob);
+    } catch (error) {
+      console.error('Error getting processed image:', error);
+      throw error;
+    }
+  }
+
   // Check if the photo meets compliance requirements
   checkCompliance(imageData: string): Promise<ComplianceResult> {
     return new Promise((resolve) => {
@@ -568,7 +448,7 @@ async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
     if (url.startsWith('data:')) {
       return url;
     }
-    
+
     // If it's a blob URL, fetch it and convert to base64
     try {
       const response = await fetch(url);

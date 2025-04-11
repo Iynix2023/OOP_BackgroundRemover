@@ -10,9 +10,21 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.demo.ExportOptions;
+import com.example.demo.service.ImageProcessingService_v2;
+import com.example.demo.service.ImageEnhancementService;
+
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import javax.imageio.ImageIO;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.Color;
+import java.util.logging.Logger;
 
 /**
  * Controller for handling batch image processing operations
@@ -21,7 +33,14 @@ import java.util.concurrent.Executor;
 @CrossOrigin("*")
 @EnableAsync
 public class BatchProcessingController {
+    private static final Logger LOGGER = Logger.getLogger(BatchProcessingController.class.getName());
 
+    @Autowired
+    private ImageProcessingService_v2 imageProcessingService;
+
+    @Autowired
+    private ImageEnhancementService imageEnhancementService;
+    
     // In-memory storage for batch processing
     private final Map<String, BatchStatus> batchStatuses = new ConcurrentHashMap<>();
     private final Map<String, List<ProcessedImage>> batchResults = new ConcurrentHashMap<>();
@@ -46,47 +65,161 @@ public class BatchProcessingController {
             @RequestParam("files") List<MultipartFile> files,
             @RequestParam(value = "backgroundType", defaultValue = "color") String backgroundType,
             @RequestParam(value = "backgroundValue", defaultValue = "#FFFFFF") String backgroundValue,
-            @RequestParam(value = "clothesType", required = false) String clothesType,
-            @RequestParam(value = "clothesColor", required = false) String clothesColor,
             @RequestParam(value = "brightness", defaultValue = "0") int brightness,
             @RequestParam(value = "contrast", defaultValue = "0") int contrast,
             @RequestParam(value = "saturation", defaultValue = "0") int saturation,
-            @RequestParam(value = "smoothing", defaultValue = "0") int smoothing,
             @RequestParam(value = "exportFormat", defaultValue = "jpeg") String exportFormat,
-            @RequestParam(value = "exportSize", defaultValue = "35x45") String exportSize) {
+            @RequestParam(value = "exportSize", defaultValue = "STANDARD_35x45") String exportSize,
+            @RequestParam(value = "exportLayout", required = false, defaultValue = "single") String exportLayout,
+            @RequestParam(value = "customWidth", required = false) Integer customWidth,
+            @RequestParam(value = "customHeight", required = false) Integer customHeight) {
         
-        // Generate batch ID
-        String batchId = UUID.randomUUID().toString();
-        
-        // Create batch status
-        BatchStatus status = new BatchStatus();
-        status.setBatchId(batchId);
-        status.setTotalImages(files.size());
-        status.setProcessedCount(0);
-        status.setCompleted(false);
-        
-        List<ImageInfo> imageInfos = new ArrayList<>();
-        for (int i = 0; i < files.size(); i++) {
-            ImageInfo info = new ImageInfo();
-            info.setIndex(i);
-            info.setOriginalName(files.get(i).getOriginalFilename());
-            info.setStatus("pending");
-            imageInfos.add(info);
+        try {
+            LOGGER.info("Starting batch processing with exportSize: " + exportSize);
+            
+            // Map the frontend values to the Java enum values
+            ExportOptions exportOptions = new ExportOptions();
+            
+            // Map format
+            if ("jpeg".equalsIgnoreCase(exportFormat)) {
+                exportOptions.setFormat(ExportOptions.ExportFormat.JPEG);
+            } else if ("png".equalsIgnoreCase(exportFormat)) {
+                exportOptions.setFormat(ExportOptions.ExportFormat.PNG);
+            } else {
+                exportOptions.setFormat(ExportOptions.ExportFormat.JPEG); // Default
+            }
+            
+            // Map size - expanded to include all the options from PhotoSheetGenerator.tsx
+            mapExportSize(exportOptions, exportSize);
+            
+            LOGGER.info("Mapped exportSize to: " + exportOptions.getSize());
+            
+            // Store custom dimensions if provided
+            if (exportOptions.getSize() == ExportOptions.ExportSize.CUSTOM) {
+                if (customWidth != null && customHeight != null) {
+                    exportOptions.setCustomWidth(customWidth);
+                    exportOptions.setCustomHeight(customHeight);
+                } else {
+                    // Default custom dimensions if not provided
+                    exportOptions.setCustomWidth(800);
+                    exportOptions.setCustomHeight(1000);
+                }
+            }
+            
+            // Map layout
+            if ("single".equalsIgnoreCase(exportLayout)) {
+                exportOptions.setLayout(ExportOptions.ExportLayout.SINGLE);
+            } else if ("2x2".equalsIgnoreCase(exportLayout)) {
+                exportOptions.setLayout(ExportOptions.ExportLayout.GRID_2x2);
+            } else if ("4x6".equalsIgnoreCase(exportLayout)) {
+                exportOptions.setLayout(ExportOptions.ExportLayout.GRID_4x6);
+            } else {
+                exportOptions.setLayout(ExportOptions.ExportLayout.SINGLE); // Default
+            }
+            
+            // Generate batch ID
+            String batchId = UUID.randomUUID().toString();
+            
+            // Create batch status
+            BatchStatus status = new BatchStatus();
+            status.setBatchId(batchId);
+            status.setTotalImages(files.size());
+            status.setProcessedCount(0);
+            status.setCompleted(false);
+            
+            List<ImageInfo> imageInfos = new ArrayList<>();
+            for (int i = 0; i < files.size(); i++) {
+                ImageInfo info = new ImageInfo();
+                info.setIndex(i);
+                info.setOriginalName(files.get(i).getOriginalFilename());
+                info.setStatus("pending");
+                imageInfos.add(info);
+            }
+            status.setImages(imageInfos);
+            
+            // Store batch status
+            batchStatuses.put(batchId, status);
+            batchResults.put(batchId, new ArrayList<>());
+            
+            // Create enhancement options object
+            com.example.demo.processor.model.EnhanceOptions enhanceOptions = new com.example.demo.processor.model.EnhanceOptions();
+            enhanceOptions.setBrightness(brightness);
+            enhanceOptions.setContrast(contrast);
+            enhanceOptions.setSaturation(saturation);
+            
+            // Start processing
+            processImagesAsync(batchId, files, backgroundType, backgroundValue, enhanceOptions, exportOptions);
+            
+            Map<String, String> response = new HashMap<>();
+            response.put("batchId", batchId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            e.printStackTrace();
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", e.getMessage());
+            return ResponseEntity.internalServerError().body(errorResponse);
         }
-        status.setImages(imageInfos);
-        
-        // Store batch status
-        batchStatuses.put(batchId, status);
-        batchResults.put(batchId, new ArrayList<>());
-        
-        // Start processing
-        processImagesAsync(batchId, files, backgroundType, backgroundValue, 
-                clothesType, clothesColor, brightness, contrast, 
-                saturation, smoothing, exportFormat, exportSize);
-        
-        Map<String, String> response = new HashMap<>();
-        response.put("batchId", batchId);
-        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Helper method to map export size string to the appropriate enum value
+     */
+    private void mapExportSize(ExportOptions exportOptions, String exportSize) {
+        try {
+            // First, try to parse it directly as an enum value
+            ExportOptions.ExportSize size = ExportOptions.ExportSize.valueOf(exportSize);
+            exportOptions.setSize(size);
+            LOGGER.info("Direct enum mapping: " + size);
+        } catch (IllegalArgumentException e) {
+            // If it's not a direct enum value, try to map common strings
+            ExportOptions.ExportSize mappedSize;
+            
+            switch (exportSize.toLowerCase()) {
+                case "35x45":
+                case "standard":
+                case "singapore":
+                    mappedSize = ExportOptions.ExportSize.STANDARD_35x45;
+                    break;
+                case "2x2":
+                case "us_passport":
+                case "us":
+                case "us_passport_2x2":
+                    mappedSize = ExportOptions.ExportSize.US_PASSPORT_2x2;
+                    break;
+                case "china":
+                case "china_visa":
+                case "33x48":
+                    mappedSize = ExportOptions.ExportSize.CHINA_VISA;
+                    break;
+                case "malaysia":
+                case "malaysia_passport":
+                case "35x50":
+                    mappedSize = ExportOptions.ExportSize.MALAYSIA_PASSPORT;
+                    break;
+                case "australia":
+                case "australia_visa":
+                    mappedSize = ExportOptions.ExportSize.AUSTRALIA_VISA;
+                    break;
+                case "india":
+                case "india_passport":
+                case "35x35":
+                    mappedSize = ExportOptions.ExportSize.INDIA_PASSPORT;
+                    break;
+                case "smu":
+                case "smu_id":
+                    mappedSize = ExportOptions.ExportSize.SMU_ID;
+                    break;
+                case "custom":
+                    mappedSize = ExportOptions.ExportSize.CUSTOM;
+                    break;
+                default:
+                    // Default to standard if nothing matches
+                    mappedSize = ExportOptions.ExportSize.STANDARD_35x45;
+            }
+            
+            exportOptions.setSize(mappedSize);
+            LOGGER.info("String-based mapping: " + mappedSize);
+        }
     }
     
     /**
@@ -115,11 +248,17 @@ public class BatchProcessingController {
         }
         
         ProcessedImage result = results.get(imageIndex);
+        if (result.getStatus().equals("failed") || result.getProcessedImage() == null) {
+            return ResponseEntity.badRequest().body("Image processing failed: " + result.getError());
+        }
         
-        // Return image as a byte array with the correct content type
+        // Determine the correct media type based on the export format
+        MediaType mediaType = result.getFormat() != null && result.getFormat().equals(ExportOptions.ExportFormat.JPEG) ? 
+                MediaType.IMAGE_JPEG : MediaType.IMAGE_PNG;
+        
         return ResponseEntity
             .ok()
-            .contentType(MediaType.IMAGE_JPEG) // Or determine dynamically based on file type
+            .contentType(mediaType)
             .body(result.getProcessedImage());
     }
     
@@ -127,11 +266,14 @@ public class BatchProcessingController {
      * Process images asynchronously
      */
     @Async("batchTaskExecutor")
-    public void processImagesAsync(String batchId, List<MultipartFile> files, 
-                                  String backgroundType, String backgroundValue,
-                                  String clothesType, String clothesColor,
-                                  int brightness, int contrast, int saturation, int smoothing,
-                                  String exportFormat, String exportSize) {
+    public void processImagesAsync(
+            String batchId, 
+            List<MultipartFile> files, 
+            String backgroundType, 
+            String backgroundValue,
+            com.example.demo.processor.model.EnhanceOptions enhanceOptions,
+            ExportOptions exportOptions) {
+        
         BatchStatus status = batchStatuses.get(batchId);
         List<ProcessedImage> results = batchResults.get(batchId);
         
@@ -147,16 +289,25 @@ public class BatchProcessingController {
                 ProcessedImage result = new ProcessedImage();
                 result.setIndex(i);
                 result.setOriginalName(file.getOriginalFilename());
+                result.setFormat(exportOptions.getFormat());
                 
                 // Store original image bytes
-                result.setOriginalImage(file.getBytes());
+                byte[] originalBytes = file.getBytes();
+                result.setOriginalImage(originalBytes);
                 
-                // Process the image
-                // For now, let's just use the original image
-                // TODO: Replace with calls to your actual image processing methods
-                byte[] processedImageBytes = file.getBytes();
+                // Step 1: Process image - Background removal using deep learning
+                byte[] backgroundRemovedBytes = imageProcessingService.removeBackground(file);
+                LOGGER.info("Background removed for image " + i);
                 
-                // Use the processed image
+                // Step 2: Apply image enhancement
+                byte[] enhancedBytes = imageEnhancementService.enhanceImage(backgroundRemovedBytes, enhanceOptions);
+                LOGGER.info("Enhancement applied for image " + i);
+                
+                // Step 3: Resize the image based on export size and generate layout if needed
+                byte[] processedImageBytes = processImage(enhancedBytes, exportOptions);
+                LOGGER.info("Size processing completed for image " + i);
+                
+                // Store processed image
                 result.setProcessedImage(processedImageBytes);
                 result.setStatus("completed");
                 
@@ -165,8 +316,10 @@ public class BatchProcessingController {
                 
                 // Add to results
                 results.add(result);
+                
             } catch (Exception e) {
                 e.printStackTrace();
+                LOGGER.severe("Error processing image " + i + ": " + e.getMessage());
                 // Update status on error
                 imageInfo.setStatus("failed");
                 imageInfo.setError(e.getMessage());
@@ -184,6 +337,274 @@ public class BatchProcessingController {
             status.incrementProcessed();
         }
     }
+    
+    /**
+     * Process an image according to the export options
+     */
+    private byte[] processImage(byte[] imageBytes, ExportOptions exportOptions) throws Exception {
+        // Get the image dimensions based on the size option
+        int width, height;
+        float targetAspectRatio;
+        
+        LOGGER.info("Processing image with size option: " + exportOptions.getSize());
+        
+        switch (exportOptions.getSize()) {
+            case STANDARD_35x45:
+                // Standard ID photo size (35mm x 45mm at 300 DPI)
+                width = Math.round(35 * 300 / 25.4f); // 25.4mm = 1 inch
+                height = Math.round(45 * 300 / 25.4f);
+                targetAspectRatio = 35.0f / 45.0f;
+                LOGGER.info("Using STANDARD_35x45 with dimensions: " + width + "x" + height);
+                break;
+            case US_PASSPORT_2x2:
+                // US Passport size (2 inch x 2 inch at 300 DPI) - 600x600 pixels
+                width = 2 * 300;
+                height = 2 * 300;
+                targetAspectRatio = 1.0f;
+                LOGGER.info("Using US_PASSPORT_2x2 with dimensions: " + width + "x" + height);
+                break;
+            case CHINA_VISA:
+                // China Visa (33mm x 48mm at 300 DPI)
+                width = Math.round(33 * 300 / 25.4f);
+                height = Math.round(48 * 300 / 25.4f);
+                targetAspectRatio = 33.0f / 48.0f;
+                LOGGER.info("Using CHINA_VISA with dimensions: " + width + "x" + height);
+                break;
+            case MALAYSIA_PASSPORT:
+                // Malaysia Visa/Passport (35mm x 50mm at 300 DPI)
+                width = Math.round(35 * 300 / 25.4f);
+                height = Math.round(50 * 300 / 25.4f);
+                targetAspectRatio = 35.0f / 50.0f;
+                LOGGER.info("Using MALAYSIA_PASSPORT with dimensions: " + width + "x" + height);
+                break;
+            case AUSTRALIA_VISA:
+                // Australia Visa (35mm x 45mm at 300 DPI, same as standard)
+                width = Math.round(35 * 300 / 25.4f);
+                height = Math.round(45 * 300 / 25.4f);
+                targetAspectRatio = 35.0f / 45.0f;
+                LOGGER.info("Using AUSTRALIA_VISA with dimensions: " + width + "x" + height);
+                break;
+            case INDIA_PASSPORT:
+                // Indian Passport/Visa (35mm x 35mm at 300 DPI)
+                width = Math.round(35 * 300 / 25.4f);
+                height = Math.round(35 * 300 / 25.4f);
+                targetAspectRatio = 1.0f;
+                LOGGER.info("Using INDIA_PASSPORT with dimensions: " + width + "x" + height);
+                break;
+            case SMU_ID:
+                // SMU Student ID (130px x 170px)
+                width = 130;
+                height = 170;
+                targetAspectRatio = 130.0f / 170.0f;
+                LOGGER.info("Using SMU_ID with dimensions: " + width + "x" + height);
+                break;
+            case CUSTOM:
+                // For custom, use the provided dimensions or defaults
+                width = exportOptions.getCustomWidth() != null ? exportOptions.getCustomWidth() : 800;
+                height = exportOptions.getCustomHeight() != null ? exportOptions.getCustomHeight() : 1000;
+                targetAspectRatio = (float)width / (float)height;
+                LOGGER.info("Using CUSTOM with dimensions: " + width + "x" + height);
+                break;
+            default:
+                // Default to standard ID size
+                width = Math.round(35 * 300 / 25.4f);
+                height = Math.round(45 * 300 / 25.4f);
+                targetAspectRatio = 35.0f / 45.0f;
+                LOGGER.info("Using DEFAULT with dimensions: " + width + "x" + height);
+        }
+        
+        // Convert byte array to BufferedImage
+        BufferedImage originalImage = ImageIO.read(new ByteArrayInputStream(imageBytes));
+        if (originalImage == null) {
+            throw new IllegalArgumentException("Failed to read image data");
+        }
+        
+        LOGGER.info("Original image dimensions: " + originalImage.getWidth() + "x" + originalImage.getHeight());
+        
+        // Properly crop and resize the image to maintain the target aspect ratio
+        BufferedImage croppedImage = cropToAspectRatio(originalImage, targetAspectRatio);
+        LOGGER.info("Cropped image to aspect ratio: " + targetAspectRatio);
+        LOGGER.info("Cropped dimensions: " + croppedImage.getWidth() + "x" + croppedImage.getHeight());
+        
+        // Process the image based on layout
+        BufferedImage processedImage;
+        
+        switch (exportOptions.getLayout()) {
+            case GRID_2x2:
+                LOGGER.info("Creating 2x2 grid layout");
+                processedImage = createGridLayout(croppedImage, 2, 2, width, height);
+                break;
+            case GRID_4x6:
+                LOGGER.info("Creating 4x6 grid layout");
+                processedImage = createGridLayout(croppedImage, 4, 6, width, height);
+                break;
+            case SINGLE:
+            default:
+                LOGGER.info("Creating single layout, resizing to: " + width + "x" + height);
+                // Resize the cropped image for single layout
+                processedImage = resizeImage(croppedImage, width, height);
+        }
+        
+        // Log final image dimensions
+        LOGGER.info("Final image dimensions: " + processedImage.getWidth() + "x" + processedImage.getHeight());
+        
+        // Convert the processed image back to a byte array
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        
+        // Determine the format name
+        String formatName;
+        if (exportOptions.getFormat() == ExportOptions.ExportFormat.JPEG) {
+            formatName = "jpg";
+            // For JPEG, use TYPE_INT_RGB to avoid transparency issues
+            if (processedImage.getType() == BufferedImage.TYPE_INT_ARGB || 
+                processedImage.getType() == BufferedImage.TYPE_4BYTE_ABGR) {
+                
+                BufferedImage newImage = new BufferedImage(
+                    processedImage.getWidth(), 
+                    processedImage.getHeight(), 
+                    BufferedImage.TYPE_INT_RGB
+                );
+                newImage.createGraphics().drawImage(processedImage, 0, 0, Color.WHITE, null);
+                processedImage = newImage;
+            }
+        } else {
+            formatName = "png";
+        }
+        
+        boolean success = ImageIO.write(processedImage, formatName, baos);
+        if (!success) {
+            throw new IllegalStateException("No appropriate writer found for format: " + formatName);
+        }
+        
+        return baos.toByteArray();
+    }
+    
+    /**
+     * Crops an image to match the target aspect ratio while keeping as much content as possible
+     */
+    private BufferedImage cropToAspectRatio(BufferedImage image, float targetAspectRatio) {
+        int originalWidth = image.getWidth();
+        int originalHeight = image.getHeight();
+        float originalAspectRatio = (float)originalWidth / originalHeight;
+        
+        LOGGER.info("Original aspect ratio: " + originalAspectRatio + ", target aspect ratio: " + targetAspectRatio);
+        
+        int x = 0, y = 0;
+        int croppedWidth = originalWidth;
+        int croppedHeight = originalHeight;
+        
+        // Calculate the cropping rectangle
+        if (originalAspectRatio > targetAspectRatio) {
+            // Original image is wider than target, crop width
+            croppedWidth = Math.round(originalHeight * targetAspectRatio);
+            x = (originalWidth - croppedWidth) / 2; // Center crop horizontally
+            LOGGER.info("Cropping width from " + originalWidth + " to " + croppedWidth);
+        } else if (originalAspectRatio < targetAspectRatio) {
+            // Original image is taller than target, crop height
+            croppedHeight = Math.round(originalWidth / targetAspectRatio);
+            y = (originalHeight - croppedHeight) / 4; // Crop from the upper portion (1/4 from top)
+            LOGGER.info("Cropping height from " + originalHeight + " to " + croppedHeight);
+        }
+        
+        // Ensure we don't exceed image bounds
+        if (x < 0) {
+            LOGGER.info("Adjusting x from " + x + " to 0");
+            x = 0;
+        }
+        if (y < 0) {
+            LOGGER.info("Adjusting y from " + y + " to 0");
+            y = 0;
+        }
+        if (x + croppedWidth > originalWidth) {
+            croppedWidth = originalWidth - x;
+            LOGGER.info("Adjusting width to " + croppedWidth);
+        }
+        if (y + croppedHeight > originalHeight) {
+            croppedHeight = originalHeight - y;
+            LOGGER.info("Adjusting height to " + croppedHeight);
+        }
+        
+        LOGGER.info("Cropping to: x=" + x + ", y=" + y + ", width=" + croppedWidth + ", height=" + croppedHeight);
+        
+        // Perform the crop
+        return image.getSubimage(x, y, croppedWidth, croppedHeight);
+    }
+    
+    /**
+     * Resize an image to the specified dimensions
+     */
+    private BufferedImage resizeImage(BufferedImage originalImage, int width, int height) {
+        LOGGER.info("Resizing image from " + originalImage.getWidth() + "x" + originalImage.getHeight() + 
+                    " to " + width + "x" + height);
+        
+        // Create a new buffered image with a compatible image type
+        BufferedImage resizedImage;
+        if (originalImage.getTransparency() == BufferedImage.OPAQUE) {
+            resizedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        } else {
+            resizedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        }
+        
+        Graphics2D g2d = resizedImage.createGraphics();
+        
+        // Set rendering hints for better quality
+        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // Fill with white background if not transparent
+        if (originalImage.getTransparency() == BufferedImage.OPAQUE) {
+            g2d.setColor(Color.WHITE);
+            g2d.fillRect(0, 0, width, height);
+        }
+        
+        // Draw the original image resized
+        g2d.drawImage(originalImage, 0, 0, width, height, null);
+        g2d.dispose();
+        
+        return resizedImage;
+    }
+    
+    /**
+     * Create a grid layout of the image
+     */
+    private BufferedImage createGridLayout(BufferedImage originalImage, int rows, int cols, int singleWidth, int singleHeight) {
+        // Calculate the dimensions of the grid
+        int gridWidth = singleWidth * cols;
+        int gridHeight = singleHeight * rows;
+        
+        LOGGER.info("Creating grid layout " + rows + "x" + cols + " with dimensions " + gridWidth + "x" + gridHeight);
+        LOGGER.info("Single photo size: " + singleWidth + "x" + singleHeight);
+        
+        // Create a new image for the grid
+        BufferedImage gridImage = new BufferedImage(gridWidth, gridHeight, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g2d = gridImage.createGraphics();
+        
+        // Set rendering hints for better quality
+        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // Fill with white background
+        g2d.setColor(Color.WHITE);
+        g2d.fillRect(0, 0, gridWidth, gridHeight);
+        
+        // First resize the original image to fit the single photo size
+        BufferedImage resizedImage = resizeImage(originalImage, singleWidth, singleHeight);
+        
+        // Draw the resized image multiple times in a grid
+        for (int row = 0; row < rows; row++) {
+            for (int col = 0; col < cols; col++) {
+                int x = col * singleWidth;
+                int y = row * singleHeight;
+                g2d.drawImage(resizedImage, x, y, null);
+            }
+        }
+        
+        g2d.dispose();
+        return gridImage;
+    }
+    
     // Model classes
     public static class BatchStatus {
         private String batchId;
@@ -236,6 +657,7 @@ public class BatchProcessingController {
         private byte[] processedImage;
         private String status;
         private String error;
+        private ExportOptions.ExportFormat format; // Image format (JPEG, PNG)
         
         // Getters and setters
         public int getIndex() { return index; }
@@ -250,5 +672,7 @@ public class BatchProcessingController {
         public void setStatus(String status) { this.status = status; }
         public String getError() { return error; }
         public void setError(String error) { this.error = error; }
+        public ExportOptions.ExportFormat getFormat() { return format; }
+        public void setFormat(ExportOptions.ExportFormat format) { this.format = format; }
     }
 }

@@ -45,7 +45,12 @@ public class ImageEnhancementService {
         double scaledBrightness = options.getBrightness();
         double scaledContrast = 1.0 + (options.getContrast() / 50.0);
         double scaledSaturation = 1.0 + (options.getSaturation() / 50.0);
-
+        
+        if (Math.abs(scaledBrightness) > 30) {
+            double dampingFactor = 0.7; // Reduce impact at extreme values
+            scaledBrightness = 30 * Math.signum(scaledBrightness) + 
+                              (scaledBrightness - 30 * Math.signum(scaledBrightness)) * dampingFactor;
+        }
         // Apply brightness and contrast to RGB channels only
         rgbImage.convertTo(rgbImage, -1, scaledContrast, scaledBrightness);
 

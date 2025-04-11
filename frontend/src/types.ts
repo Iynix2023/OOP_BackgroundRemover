@@ -25,10 +25,6 @@ export interface BackgroundOptions {
   value: string; // color code or image URL
 }
 
-export interface ClothesOptions {
-  type: 'suit' | 'shirt' | 'blouse' | 'none';
-  color: string;
-}
 
 export interface EnhanceOptions {
   brightness: number;
