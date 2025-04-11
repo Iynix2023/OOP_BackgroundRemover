@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <title>Photo Background Remover</title>
+    <style>
+        .image-container {
+            margin-top: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+    
+        .image-container img {
+            max-width: 100%;
+            height: auto;
+            margin: 10px 0;
+            border: 1px solid #eee;
+        }
+    
+        #processedImage {
+            background-color: #f5f5f5;
+        }
+    </style>
+    </style>
+</head>
+
+<body>
+    <h1>Photo Background Remover</h1>
+
+    <form id="uploadForm">
+        <input type="file" id="imageInput" accept="image/*" required>
+        <button type="submit">Process Image</button>
+    </form>
+
+    <div class="image-container">
+        <h3>Original Image:</h3>
+        <img id="originalImage" style="display: none;" width="500">
+
+        <h3>Processed Image:</h3>
+        <div id="loadingIndicator" style="display: none;">Processing image...</div>
+        <img id="processedImage" style="display: none;" width="500">
+    </div>
+
+    <style>
+        #loadingIndicator {
+            margin: 10px 0;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const processedImage = document.getElementById('processedImage');
+            const originalImage = document.getElementById('originalImage');
+
+            try {
+                // Show loading state
+                processedImage.style.display = 'none';
+                loadingIndicator.style.display = 'block';
+
+                const file = document.getElementById('imageInput').files[0];
+                const formData = new FormData();
+                formData.append('image', file);
+
+                // Display original image
+                originalImage.src = URL.createObjectURL(file);
+                originalImage.style.display = 'block';
+
+                console.log('Sending request to server...');
+                const response = await fetch('http://localhost:8080/center-image', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                console.log('Response status:', response.status);
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    console.log('Received blob of size:', blob.size, 'bytes');
+
+                    if (blob.size > 0) {
+                        const imageUrl = URL.createObjectURL(blob);
+                        console.log('Created image URL:', imageUrl);
+
+                        // Add onload handler to ensure image loads properly
+                        processedImage.onload = () => {
+                            console.log('Processed image loaded successfully');
+                            processedImage.style.display = 'block';
+                        };
+
+                        processedImage.onerror = (e) => {
+                            console.error('Error loading processed image:', e);
+                            alert('Error loading processed image');
+                        };
+
+                        processedImage.src = imageUrl;
+                    } else {
+                        throw new Error('Received empty image data');
+                    }
+                } else {
+                    const errorText = await response.text();
+                    throw new Error(`Server error: ${response.status} ${response.statusText}\n${errorText}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert(`Error processing image: ${error.message}`);
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+
+</html>

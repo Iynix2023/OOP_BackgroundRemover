@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batch Processing Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        button { padding: 10px 15px; background: #4CAF50; color: white; border: none; cursor: pointer; }
+        #result { margin-top: 20px; padding: 15px; border: 1px solid #ddd; display: none; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Batch Processing API Test</h1>
+    
+    <form id="uploadForm">
+        <div class="form-group">
+            <label for="files">Select Images:</label>
+            <input type="file" id="files" name="files" multiple accept="image/*">
+        </div>
+        
+        <div class="form-group">
+            <label for="backgroundType">Background Type:</label>
+            <select id="backgroundType" name="backgroundType">
+                <option value="color">Color</option>
+                <option value="">None</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="backgroundValue">Background Color:</label>
+            <input type="color" id="backgroundValue" name="backgroundValue" value="#FFFFFF">
+        </div>
+        
+        <button type="button" onclick="submitForm()">Start Processing</button>
+    </form>
+    
+    <div id="result"></div>
+    
+    <script>
+        function submitForm() {
+            const files = document.getElementById('files').files;
+            if (files.length === 0) {
+                alert('Please select at least one file');
+                return;
+            }
+            
+            const backgroundType = document.getElementById('backgroundType').value;
+            const backgroundValue = document.getElementById('backgroundValue').value;
+            
+            const formData = new FormData();
+            
+            // Add files
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+            
+            // Add parameters
+            formData.append('backgroundType', backgroundType);
+            formData.append('backgroundValue', backgroundValue);
+            
+            // Show processing state
+            document.getElementById('result').style.display = 'block';
+            document.getElementById('result').innerHTML = 'Processing...';
+            
+            // Send request
+            fetch('/api/batch/process', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error(`Server error: ${response.status}. Details: ${text}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Success:', data);
+                document.getElementById('result').innerHTML = `
+                    <h3>Success!</h3>
+                    <p>Batch ID: ${data.batchId}</p>
+                    <button onclick="checkStatus('${data.batchId}')">Check Status</button>
+                `;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('result').innerHTML = `
+                    <h3 class="error">Error</h3>
+                    <p>${error.message}</p>
+                `;
+            });
+        }
+        
+        function checkStatus(batchId) {
+            document.getElementById('result').innerHTML = 'Checking status...';
+            
+            fetch(`/api/batch/status/${batchId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Status:', data);
+                
+                let html = `
+                    <h3>Batch Status</h3>
+                    <p>Processed: ${data.processedCount} of ${data.totalImages}</p>
+                    <p>Completed: ${data.completed ? 'Yes' : 'No'}</p>
+                    <h4>Images:</h4>
+                    <ul>
+                `;
+                
+                data.images.forEach(img => {
+                    html += `<li>${img.originalName}: ${img.status}</li>`;
+                });
+                
+                html += '</ul>';
+                
+                if (!data.completed) {
+                    html += `<button onclick="checkStatus('${batchId}')">Refresh Status</button>`;
+                } else {
+                    html += `<button onclick="viewResults('${batchId}', ${data.totalImages})">View Results</button>`;
+                }
+                
+                document.getElementById('result').innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('result').innerHTML = `
+                    <h3 class="error">Error</h3>
+                    <p>${error.message}</p>
+                `;
+            });
+        }
+        
+        function viewResults(batchId, count) {
+            let html = '<h3>Processed Images</h3>';
+            
+            for (let i = 0; i < count; i++) {
+                html += `
+                    <div style="margin-bottom: 20px;">
+                        <h4>Image ${i + 1}</h4>
+                        <img src="/api/batch/result/${batchId}/${i}" style="max-width: 100%;">
+                    </div>
+                `;
+            }
+            
+            document.getElementById('result').innerHTML = html;
+        }
+    </script>
+</body>
+</html>
