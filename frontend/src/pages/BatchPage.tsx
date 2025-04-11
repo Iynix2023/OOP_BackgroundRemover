@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Upload, Settings, Play, Download, Trash2, Check, X, Camera as CameraIcon } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Upload, Settings, Play, Download, Trash2, Check, X, Camera as CameraIcon, RefreshCw } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import ImageUploader from '../components/ImageUploader';
@@ -8,6 +8,7 @@ import InlineCamera from '../components/InlineCamera';
 import { BackgroundOptions, EnhanceOptions, ExportSize } from '../types';
 import imageProcessingService from '../services/imageProcessingService';
 import EnhancementControls from '../components/EnhancementControls';
+import { useNavigate } from 'react-router-dom';
 
 interface ProcessedBatchImage {
   original: string;
@@ -28,20 +29,36 @@ const BatchPage: React.FC = () => {
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
   const [enhanceOptions, setEnhanceOptions] = useState<EnhanceOptions>({ brightness: 0, contrast: 0, saturation: 0 });
   const [customDimensions, setCustomDimensions] = useState({ width: 160, height: 120 });
+  const navigate = useNavigate();
+  
+  // Use a ref to store the interval ID so it can be accessed from anywhere in the component
+  const pollTimerRef = useRef<number | null>(null);
 
-  // Check batch status periodically
+  const clearAllImages = () => {
+    // Refresh the page (this will reset everything)
+    navigate(0);
+  };
+  
+  // Only keep one useEffect hook for polling
   useEffect(() => {
-    let pollTimer: number | null = null;
+    // Clear any existing timer first
+    if (pollTimerRef.current !== null) {
+      window.clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
 
+    // Set up a new timer if processing
     if (isProcessing && currentBatchId) {
-      pollTimer = window.setInterval(async () => {
+      pollTimerRef.current = window.setInterval(async () => {
         await checkBatchStatus(currentBatchId);
       }, 2000);
     }
 
+    // Clean up on unmount or when dependencies change
     return () => {
-      if (pollTimer !== null) {
-        window.clearInterval(pollTimer);
+      if (pollTimerRef.current !== null) {
+        window.clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
       }
     };
   }, [isProcessing, currentBatchId]);
@@ -92,9 +109,87 @@ const BatchPage: React.FC = () => {
     setUploadedImages(newImages);
   };
 
-  const startProcessing = async () => {
-    if (uploadedImages.length === 0 || isProcessing) return;
+  // Define cancelProcessing function
+  const cancelProcessing = () => {
+    // Clear any polling interval
+    if (pollTimerRef.current !== null) {
+      window.clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    
+    // Reset processing state
+    setIsProcessing(false);
+    setCurrentBatchId(null);
+    setProcessedCount(0);
+  };
 
+  // Reset and start processing function
+  const resetAndStartProcessing = () => {
+    // Cancel any existing processing
+    if (pollTimerRef.current !== null) {
+      window.clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    
+    // Reset to initial state
+    setIsProcessing(false);
+    setCurrentBatchId(null);
+    setProcessedCount(0);
+    
+    // Reset image statuses to pending
+    setUploadedImages(prevImages => 
+      prevImages.map(img => ({
+        ...img,
+        status: 'pending',
+        processed: null,
+        error: undefined
+      }))
+    );
+    
+    // Start processing from scratch
+    setTimeout(() => {
+      startProcessing();
+    }, 100);
+  };
+
+  const startProcessing = async () => {
+    if (uploadedImages.length === 0) return;
+    
+    // If already processing, cancel it completely first
+    if (isProcessing && currentBatchId) {
+      // First stop polling
+      if (pollTimerRef.current !== null) {
+        window.clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+      
+      // Reset processing states
+      setIsProcessing(false);
+      setCurrentBatchId(null);
+      setProcessedCount(0);
+      
+      // Clear any existing processed images from state to ensure UI updates
+      // This is critical - we need to force the UI to show the new processed images
+      const resetImages = uploadedImages.map(img => ({
+        ...img,
+        status: 'pending' as const,
+        processed: null, // Clear processed image URLs
+        error: undefined
+      }));
+      
+      setUploadedImages(resetImages);
+      
+      // Give React a moment to update the state before starting new processing
+      setTimeout(() => {
+        // Start processing again with new settings (call the function again)
+        startProcessing();
+      }, 100);
+      
+      // Exit this invocation of the function
+      return;
+    }
+    
+    // Start new processing with current settings
     setIsProcessing(true);
     setProcessedCount(0);
 
@@ -119,7 +214,7 @@ const BatchPage: React.FC = () => {
         })
       );
 
-      // Prepare the form data
+      // Prepare the form data with CURRENT settings
       const formData = new FormData();
       
       // Add files to FormData
@@ -136,7 +231,7 @@ const BatchPage: React.FC = () => {
       formData.append('contrast', enhanceOptions.contrast.toString());
       formData.append('saturation', enhanceOptions.saturation.toString());
       
-      // Add export options
+      // Add export options - make sure these are the CURRENT values
       formData.append('exportFormat', exportFormat);
       formData.append('exportSize', exportSize);
       formData.append('exportLayout', exportLayout);
@@ -146,6 +241,15 @@ const BatchPage: React.FC = () => {
         formData.append('customWidth', customDimensions.width.toString());
         formData.append('customHeight', customDimensions.height.toString());
       }
+
+      // Log what we're sending for debugging
+      console.log("Sending batch with settings:", {
+        background: background,
+        enhancement: enhanceOptions,
+        exportFormat,
+        exportSize,
+        exportLayout
+      });
 
       // Send the request
       const response = await fetch('/api/batch/process', {
@@ -166,12 +270,10 @@ const BatchPage: React.FC = () => {
       // Set all images to "processing" status
       const processingImages = uploadedImages.map(img => ({
         ...img,
-        status: 'processing' as const
+        status: 'processing' as const,
+        processed: null // Ensure processed images are cleared
       }));
       setUploadedImages(processingImages);
-
-      // First check of batch status
-      await checkBatchStatus(batchId);
 
     } catch (error) {
       console.error('Error starting batch processing:', error);
@@ -182,7 +284,13 @@ const BatchPage: React.FC = () => {
 
   const checkBatchStatus = async (batchId: string) => {
     try {
-      const status = await imageProcessingService.getBatchStatus(batchId);
+      const response = await fetch(`/api/batch/status/${batchId}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get batch status: ${response.status}`);
+      }
+      
+      const status = await response.json();
 
       // Update processed count
       setProcessedCount(status.processedCount);
@@ -190,11 +298,9 @@ const BatchPage: React.FC = () => {
       // Update image statuses
       const updatedImages = [...uploadedImages];
 
-      let allCompleted = true;
       for (let i = 0; i < status.images.length; i++) {
-        const imgInfo = status.images[i];
-
         if (i < updatedImages.length) {
+          const imgInfo = status.images[i];
           updatedImages[i].status = imgInfo.status as any;
 
           if (imgInfo.error) {
@@ -202,18 +308,30 @@ const BatchPage: React.FC = () => {
           }
 
           // If this image is completed but we don't have the processed version yet
-          if (imgInfo.status === 'completed' && !updatedImages[i].processed) {
+          // or we are reprocessing (clear cache)
+          if (imgInfo.status === 'completed' && 
+              (!updatedImages[i].processed || true)) {
+              
             try {
-              const processedImageData = await imageProcessingService.getProcessedImage(batchId, i);
-              updatedImages[i].processed = processedImageData;
+              // Force a fresh fetch by adding a cache-busting query parameter
+              const timestamp = new Date().getTime();
+              const imgResponse = await fetch(`/api/batch/result/${batchId}/${i}?t=${timestamp}`);
+              
+              if (imgResponse.ok) {
+                // Revoke any existing blob URL to prevent memory leaks
+                if (updatedImages[i].processed && 
+                    updatedImages[i].processed.startsWith('blob:')) {
+                  URL.revokeObjectURL(updatedImages[i].processed);
+                }
+                
+                const blob = await imgResponse.blob();
+                updatedImages[i].processed = URL.createObjectURL(blob);
+              } else {
+                console.error(`Error fetching processed image ${i}: ${imgResponse.status}`);
+              }
             } catch (e) {
               console.error(`Error getting processed image ${i}:`, e);
             }
-          }
-
-          // Check if this image is still in progress
-          if (imgInfo.status !== 'completed' && imgInfo.status !== 'failed') {
-            allCompleted = false;
           }
         }
       }
@@ -221,7 +339,11 @@ const BatchPage: React.FC = () => {
       setUploadedImages(updatedImages);
 
       // If all images are processed, stop polling
-      if (status.completed || allCompleted) {
+      const allCompleted = status.completed || 
+                          updatedImages.every(img => 
+                            img.status === 'completed' || img.status === 'failed');
+      
+      if (allCompleted) {
         setIsProcessing(false);
       }
     } catch (error) {
@@ -315,7 +437,7 @@ const BatchPage: React.FC = () => {
                     <div className="flex justify-between items-center mb-3">
                       <h3 className="font-medium">Uploaded Images ({uploadedImages.length})</h3>
                       <button
-                        onClick={() => setUploadedImages([])}
+                        onClick={clearAllImages}
                         className="text-sm text-red-600 hover:text-red-800"
                         disabled={isProcessing}
                       >
@@ -495,16 +617,27 @@ const BatchPage: React.FC = () => {
               </div>
 
               <button
-                onClick={startProcessing}
-                disabled={uploadedImages.length === 0 || isProcessing}
+                onClick={isProcessing ? cancelProcessing : resetAndStartProcessing}
+                disabled={uploadedImages.length === 0}
                 className={`w-full flex items-center justify-center px-4 py-3 rounded-md text-white font-medium
-                  ${uploadedImages.length === 0 || isProcessing
+                  ${uploadedImages.length === 0 
                     ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-indigo-600 hover:bg-indigo-700 transition-colors'
+                    : isProcessing
+                      ? 'bg-red-600 hover:bg-red-700 transition-colors'
+                      : 'bg-indigo-600 hover:bg-indigo-700 transition-colors'
                   }`}
               >
-                <Play size={18} className="mr-2" />
-                {isProcessing ? 'Processing...' : 'Start Batch Processing'}
+                {isProcessing ? (
+                  <>
+                    <X size={18} className="mr-2" />
+                    Cancel Processing
+                  </>
+                ) : (
+                  <>
+                    <Play size={18} className="mr-2" />
+                    Start Batch Processing
+                  </>
+                )}
               </button>
             </div>
           </div>
