@@ -15,7 +15,6 @@ const Header: React.FC = () => {
           <Link to="/" className="hover:text-indigo-200 transition-colors">Home</Link>
           <Link to="/process" className="hover:text-indigo-200 transition-colors">Process Photos</Link>
           <Link to="/batch" className="hover:text-indigo-200 transition-colors">Batch Processing</Link>
-          <Link to="/history" className="hover:text-indigo-200 transition-colors">History</Link>
         </nav>
         
         <button className="md:hidden">

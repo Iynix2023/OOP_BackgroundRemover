@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Save, Undo, Redo, Check, Camera as CameraIcon } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import ImageUploader from '../components/ImageUploader';
 import ImageCropper from '../components/ImageCropper';
 import BackgroundSelector from '../components/BackgroundSelector';
-import ClothesSelector from '../components/ClothesSelector';
 import EnhancementControls from '../components/EnhancementControls';
 import ComplianceChecker from '../components/ComplianceChecker';
 import InlineCamera from '../components/InlineCamera';
@@ -14,6 +14,7 @@ import imageProcessingService from '../services/imageProcessingService';
 import PhotoSheetGenerator from '../components/PhotoSheetGenerator';
 
 const ProcessPage: React.FC = () => {
+  const navigate = useNavigate();
   const debounceTimer = useRef<number | null>(null);
   const [step, setStep] = useState<number>(1);
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
@@ -441,50 +442,29 @@ const ProcessPage: React.FC = () => {
                   </div>
                 )}
                 <div className="mt-6 flex space-x-4">
-                  <button
+                  {/* <button
                     className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
                     onClick={downloadImage}
                   >
                     <Save size={18} className="mr-2" />
                     Download
                   </button>
-                  <button className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors">
+                  <button
+                    className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                    onClick={() => {
+                      if (processedImage) {
+                        imageProcessingService.saveToCloud(processedImage);
+                      }
+                    }}
+                  >
                     <Save size={18} className="mr-2" />
                     Save to Cloud
-                  </button>
+                  </button> */}
                 </div>
               </div>
               <div className="space-y-6">
                 <ComplianceChecker result={complianceResult} />
 
-                <div className="border rounded-lg p-4">
-                  <h3 className="font-medium text-gray-700 mb-2">Export Options</h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm text-gray-600 mb-1">Format</label>
-                      <select className="w-full border border-gray-300 rounded-md px-3 py-2">
-                        <option value="jpeg">JPEG</option>
-                        <option value="png">PNG</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-600 mb-1">Size</label>
-                      <select className="w-full border border-gray-300 rounded-md px-3 py-2">
-                        <option value="35x45">35x45 mm (Standard)</option>
-                        <option value="2x2">2x2 inch (US Passport)</option>
-                        <option value="custom">Custom Size</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-600 mb-1">Layout</label>
-                      <select className="w-full border border-gray-300 rounded-md px-3 py-2">
-                        <option value="single">Single Photo</option>
-                        <option value="2x2">2x2 Grid</option>
-                        <option value="4x6">4x6 Grid</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
                 <PhotoSheetGenerator processedImage={processedImage} />
               </div>
             </div>
@@ -575,20 +555,20 @@ const ProcessPage: React.FC = () => {
                 >
                   Next
                   <ArrowRight size={18} className="ml-2" />
-                </button>
-              ) : (
-                <button
-                  onClick={downloadImage}
-                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                  disabled={isProcessing}
-                >
-                  Finish
-                  <Check size={18} className="ml-2" />
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+        </button>
+      ) : (
+        <button
+          onClick={() => navigate('/')}
+          className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+          disabled={isProcessing}
+        >
+          Finish
+          <Check size={18} className="ml-2" />
+        </button>
+      )}
+    </div>
+  )}
+</div>
       </main>
 
       {/* Inline Camera Modal */}

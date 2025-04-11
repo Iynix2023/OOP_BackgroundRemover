@@ -464,6 +464,33 @@ class ImageProcessingService {
       throw error;
     }
   }
+
+  // Save image to cloud
+  async saveToCloud(imageData: string): Promise<void> {
+    try {
+      // Convert blob URL to base64 if needed
+      const processedImageData = await this.blobUrlToBase64(imageData);
+
+      const formData = new FormData();
+      formData.append('image', processedImageData);
+
+      const response = await fetch('http://localhost:8080/process-image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server error:', errorText);
+        throw new Error(`Failed to save image to cloud: ${response.status} ${response.statusText}`);
+      }
+
+      console.log('Image saved to cloud successfully');
+    } catch (error) {
+      console.error('Error saving image to cloud:', error);
+      throw error;
+    }
+  }
 }
 
 export default new ImageProcessingService();
