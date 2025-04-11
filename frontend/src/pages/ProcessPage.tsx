@@ -65,14 +65,14 @@ const ProcessPage: React.FC = () => {
   const handleCameraCapture = (imageData: string) => {
     setUploadedImage(imageData);
     setProcessedImage(imageData);
-    
+
     // Initialize history
     setHistory([imageData]);
     setHistoryIndex(0);
-    
+
     // Close camera
     setShowCamera(false);
-    
+
     // Move to the next step
     setStep(2);
   };
@@ -290,7 +290,7 @@ const ProcessPage: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-lg font-medium mb-3 text-center">Take a Photo</h3>
-                <div 
+                <div
                   className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500 transition-colors"
                   onClick={() => setShowCamera(true)}
                 >
@@ -360,39 +360,39 @@ const ProcessPage: React.FC = () => {
           </div>
         );
 
-      case 4:
-        return (
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-2xl font-bold mb-6">Clothes Replacement</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="md:col-span-2">
-                {processedImage && (
-                  <div className="bg-gray-100 rounded-lg overflow-hidden">
-                    <img
-                      src={processedImage}
-                      alt="Processed"
-                      className="w-full h-auto"
-                    />
-                  </div>
-                )}
-                {isProcessing && (
-                  <div className="mt-4 text-center">
-                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-indigo-600 border-r-transparent"></div>
-                    <p className="mt-2 text-sm text-gray-600">Processing image...</p>
-                  </div>
-                )}
-              </div>
-              <div>
-                <ClothesSelector
-                  onSelect={handleClothesChange}
-                  currentClothes={clothes}
-                />
-              </div>
-            </div>
-          </div>
-        );
+      // case 4:
+      //   return (
+      //     <div className="max-w-4xl mx-auto">
+      //       <h2 className="text-2xl font-bold mb-6">Clothes Replacement</h2>
+      //       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      //         <div className="md:col-span-2">
+      //           {processedImage && (
+      //             <div className="bg-gray-100 rounded-lg overflow-hidden">
+      //               <img
+      //                 src={processedImage}
+      //                 alt="Processed"
+      //                 className="w-full h-auto"
+      //               />
+      //             </div>
+      //           )}
+      //           {isProcessing && (
+      //             <div className="mt-4 text-center">
+      //               <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-indigo-600 border-r-transparent"></div>
+      //               <p className="mt-2 text-sm text-gray-600">Processing image...</p>
+      //             </div>
+      //           )}
+      //         </div>
+      //         <div>
+      //           <ClothesSelector
+      //             onSelect={handleClothesChange}
+      //             currentClothes={clothes}
+      //           />
+      //         </div>
+      //       </div>
+      //     </div>
+      //   );
 
-      case 5:
+      case 4:
         return (
           <div className="max-w-4xl mx-auto">
             <h2 className="text-2xl font-bold mb-6">Photo Enhancement</h2>
@@ -425,7 +425,7 @@ const ProcessPage: React.FC = () => {
           </div>
         );
 
-      case 6:
+      case 5:
         return (
           <div className="max-w-4xl mx-auto">
             <h2 className="text-2xl font-bold mb-6">Compliance Check & Export</h2>
@@ -505,10 +505,10 @@ const ProcessPage: React.FC = () => {
           {/* Progress Steps */}
           <div className="mb-8">
             <div className="flex items-center justify-between max-w-3xl mx-auto">
-              {[1, 2, 3, 4, 5, 6].map((stepNumber) => (
+              {[1, 2, 3, 4, 5].map((stepNumber) => (
                 <div
                   key={stepNumber}
-                  className={`flex flex-col items-center ${stepNumber < 6 ? 'w-1/5' : ''}`}
+                  className="flex flex-col items-center flex-1"
                 >
                   <div
                     className={`w-10 h-10 rounded-full flex items-center justify-center ${stepNumber === step
@@ -520,12 +520,12 @@ const ProcessPage: React.FC = () => {
                   >
                     {stepNumber < step ? <Check size={18} /> : stepNumber}
                   </div>
-                  {stepNumber < 6 && (
-                    <div
-                      className={`h-1 w-full mt-4 ${stepNumber < step ? 'bg-indigo-400' : 'bg-gray-200'
-                        }`}
-                    />
-                  )}
+                  <div
+                    className={`h-1 w-full mt-4 ${stepNumber < step
+                        ? 'bg-indigo-400'
+                        : 'bg-gray-200'
+                      }`}
+                  />
                 </div>
               ))}
             </div>
@@ -567,7 +567,7 @@ const ProcessPage: React.FC = () => {
                 </button>
               </div>
 
-              {step < 6 ? (
+              {step < 5 ? (
                 <button
                   onClick={nextStep}
                   className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
@@ -593,8 +593,8 @@ const ProcessPage: React.FC = () => {
 
       {/* Inline Camera Modal */}
       {showCamera && (
-        <InlineCamera 
-          onCapture={handleCameraCapture} 
+        <InlineCamera
+          onCapture={handleCameraCapture}
           onClose={() => setShowCamera(false)}
         />
       )}
