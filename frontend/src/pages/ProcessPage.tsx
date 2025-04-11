@@ -339,7 +339,7 @@ const ProcessPage: React.FC = () => {
                     <img
                       src={processedImage}
                       alt="Processed"
-                      className="w-full h-auto"
+                      className="w-1/2 h-auto"
                     />
                   </div>
                 )}
