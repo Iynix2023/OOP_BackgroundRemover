@@ -10,6 +10,8 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.demo.service.ImageProcessingService_v2;
+
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -22,6 +24,9 @@ import java.util.concurrent.Executor;
 @EnableAsync
 public class BatchProcessingController {
 
+    @Autowired
+    private ImageProcessingService_v2 imageProcessingService;
+    
     // In-memory storage for batch processing
     private final Map<String, BatchStatus> batchStatuses = new ConcurrentHashMap<>();
     private final Map<String, List<ProcessedImage>> batchResults = new ConcurrentHashMap<>();
@@ -46,12 +51,6 @@ public class BatchProcessingController {
             @RequestParam("files") List<MultipartFile> files,
             @RequestParam(value = "backgroundType", defaultValue = "color") String backgroundType,
             @RequestParam(value = "backgroundValue", defaultValue = "#FFFFFF") String backgroundValue,
-            @RequestParam(value = "clothesType", required = false) String clothesType,
-            @RequestParam(value = "clothesColor", required = false) String clothesColor,
-            @RequestParam(value = "brightness", defaultValue = "0") int brightness,
-            @RequestParam(value = "contrast", defaultValue = "0") int contrast,
-            @RequestParam(value = "saturation", defaultValue = "0") int saturation,
-            @RequestParam(value = "smoothing", defaultValue = "0") int smoothing,
             @RequestParam(value = "exportFormat", defaultValue = "jpeg") String exportFormat,
             @RequestParam(value = "exportSize", defaultValue = "35x45") String exportSize) {
         
@@ -69,7 +68,7 @@ public class BatchProcessingController {
         for (int i = 0; i < files.size(); i++) {
             ImageInfo info = new ImageInfo();
             info.setIndex(i);
-            info.setOriginalName(files.get(i).getOriginalFilename());
+            info.setOriginalName(files.get(i).getOriginalFilename());  // The correct method name is getOriginalFilename()
             info.setStatus("pending");
             imageInfos.add(info);
         }
@@ -80,9 +79,7 @@ public class BatchProcessingController {
         batchResults.put(batchId, new ArrayList<>());
         
         // Start processing
-        processImagesAsync(batchId, files, backgroundType, backgroundValue, 
-                clothesType, clothesColor, brightness, contrast, 
-                saturation, smoothing, exportFormat, exportSize);
+        processImagesAsync(batchId, files, backgroundType, backgroundValue, exportFormat, exportSize);
         
         Map<String, String> response = new HashMap<>();
         response.put("batchId", batchId);
@@ -115,11 +112,14 @@ public class BatchProcessingController {
         }
         
         ProcessedImage result = results.get(imageIndex);
+        if (result.getStatus().equals("failed") || result.getProcessedImage() == null) {
+            return ResponseEntity.badRequest().body("Image processing failed: " + result.getError());
+        }
         
         // Return image as a byte array with the correct content type
         return ResponseEntity
             .ok()
-            .contentType(MediaType.IMAGE_JPEG) // Or determine dynamically based on file type
+            .contentType(MediaType.IMAGE_PNG) // Using PNG since your service returns PNG
             .body(result.getProcessedImage());
     }
     
@@ -127,11 +127,14 @@ public class BatchProcessingController {
      * Process images asynchronously
      */
     @Async("batchTaskExecutor")
-    public void processImagesAsync(String batchId, List<MultipartFile> files, 
-                                  String backgroundType, String backgroundValue,
-                                  String clothesType, String clothesColor,
-                                  int brightness, int contrast, int saturation, int smoothing,
-                                  String exportFormat, String exportSize) {
+    public void processImagesAsync(
+            String batchId, 
+            List<MultipartFile> files, 
+            String backgroundType, 
+            String backgroundValue,
+            String exportFormat, 
+            String exportSize) {
+        
         BatchStatus status = batchStatuses.get(batchId);
         List<ProcessedImage> results = batchResults.get(batchId);
         
@@ -146,17 +149,16 @@ public class BatchProcessingController {
                 // Create result object
                 ProcessedImage result = new ProcessedImage();
                 result.setIndex(i);
-                result.setOriginalName(file.getOriginalFilename());
+                result.setOriginalName(file.getOriginalFilename());  // Corrected here too
                 
                 // Store original image bytes
-                result.setOriginalImage(file.getBytes());
+                byte[] originalBytes = file.getBytes();
+                result.setOriginalImage(originalBytes);
                 
-                // Process the image
-                // For now, let's just use the original image
-                // TODO: Replace with calls to your actual image processing methods
-                byte[] processedImageBytes = file.getBytes();
+                // Process image - Background removal using deep learning
+                byte[] processedImageBytes = imageProcessingService.removeBackground(file);
                 
-                // Use the processed image
+                // Store processed image
                 result.setProcessedImage(processedImageBytes);
                 result.setStatus("completed");
                 
@@ -165,6 +167,7 @@ public class BatchProcessingController {
                 
                 // Add to results
                 results.add(result);
+                
             } catch (Exception e) {
                 e.printStackTrace();
                 // Update status on error
@@ -174,7 +177,7 @@ public class BatchProcessingController {
                 // Create error result
                 ProcessedImage errorResult = new ProcessedImage();
                 errorResult.setIndex(i);
-                errorResult.setOriginalName(file.getOriginalFilename());
+                errorResult.setOriginalName(file.getOriginalFilename());  // Corrected here too
                 errorResult.setStatus("failed");
                 errorResult.setError(e.getMessage());
                 results.add(errorResult);
@@ -184,6 +187,7 @@ public class BatchProcessingController {
             status.incrementProcessed();
         }
     }
+    
     // Model classes
     public static class BatchStatus {
         private String batchId;

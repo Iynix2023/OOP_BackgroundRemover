@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
-import { Upload, Settings, Play, Download, Trash2, Check, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Upload, Settings, Play, Download, Trash2, Check, X, Camera as CameraIcon } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import ImageUploader from '../components/ImageUploader';
 import BackgroundSelector from '../components/BackgroundSelector';
-import ClothesSelector from '../components/ClothesSelector';
-import EnhancementControls from '../components/EnhancementControls';
-import { BackgroundOptions, ClothesOptions, EnhanceOptions } from '../types';
+import InlineCamera from '../components/InlineCamera';
+import { BackgroundOptions } from '../types';
 import imageProcessingService from '../services/imageProcessingService';
 
 interface ProcessedBatchImage {
@@ -19,17 +18,29 @@ interface ProcessedBatchImage {
 const BatchPage: React.FC = () => {
   const [uploadedImages, setUploadedImages] = useState<ProcessedBatchImage[]>([]);
   const [background, setBackground] = useState<BackgroundOptions>({ type: 'color', value: '#FFFFFF' });
-  const [clothes, setClothes] = useState<ClothesOptions>({ type: 'suit', color: '#0A192F' });
-  const [enhanceOptions, setEnhanceOptions] = useState<EnhanceOptions>({
-    brightness: 0,
-    contrast: 0,
-    saturation: 0,
-    smoothing: 0
-  });
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [processedCount, setProcessedCount] = useState<number>(0);
   const [exportFormat, setExportFormat] = useState<string>('jpeg');
   const [exportSize, setExportSize] = useState<string>('35x45');
+  const [showCamera, setShowCamera] = useState<boolean>(false);
+  const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
+
+  // Check batch status periodically
+  useEffect(() => {
+    let pollTimer: number | null = null;
+    
+    if (isProcessing && currentBatchId) {
+      pollTimer = window.setInterval(async () => {
+        await checkBatchStatus(currentBatchId);
+      }, 2000);
+    }
+    
+    return () => {
+      if (pollTimer !== null) {
+        window.clearInterval(pollTimer);
+      }
+    };
+  }, [isProcessing, currentBatchId]);
 
   const handleImageUpload = (files: File[]) => {
     const newImages: ProcessedBatchImage[] = [];
@@ -54,16 +65,17 @@ const BatchPage: React.FC = () => {
     });
   };
 
+  const handleCameraCapture = (imageData: string) => {
+    setUploadedImages([...uploadedImages, {
+      original: imageData,
+      processed: null,
+      status: 'pending'
+    }]);
+    setShowCamera(false);
+  };
+
   const handleBackgroundChange = (options: BackgroundOptions) => {
     setBackground(options);
-  };
-
-  const handleClothesChange = (options: ClothesOptions) => {
-    setClothes(options);
-  };
-
-  const handleEnhanceChange = (options: EnhanceOptions) => {
-    setEnhanceOptions(options);
   };
 
   const removeImage = (index: number) => {
@@ -72,136 +84,135 @@ const BatchPage: React.FC = () => {
     setUploadedImages(newImages);
   };
 
-// Update the startProcessing function in BatchPage.tsx
-
-const startProcessing = async () => {
-  if (uploadedImages.length === 0 || isProcessing) return;
-  
-  setIsProcessing(true);
-  setProcessedCount(0);
-  
-  try {
-    // Convert data URLs to File objects
-    const files = await Promise.all(
-      uploadedImages.map(async (img, index) => {
-        // For data URLs that start with "data:image/jpeg;base64," or similar
-        const dataUrlParts = img.original.split(',');
-        const mimeMatch = dataUrlParts[0].match(/:(.*?);/);
-        const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
-        const byteString = atob(dataUrlParts[1]);
-        const arrayBuffer = new ArrayBuffer(byteString.length);
-        const uint8Array = new Uint8Array(arrayBuffer);
-        
-        for (let i = 0; i < byteString.length; i++) {
-          uint8Array[i] = byteString.charCodeAt(i);
-        }
-        
-        const blob = new Blob([arrayBuffer], { type: mime });
-        return new File([blob], `image-${index}.${mime.split('/')[1]}`, { type: mime });
-      })
-    );
+  const startProcessing = async () => {
+    if (uploadedImages.length === 0 || isProcessing) return;
     
-    // Start batch processing
-    const result = await imageProcessingService.startBatchProcessing(
-      files,
-      background,
-      clothes,
-      enhanceOptions,
-      exportFormat,
-      exportSize
-    );
+    setIsProcessing(true);
+    setProcessedCount(0);
     
-    const batchId = result.batchId;
-    
-    // Set all images to "processing" status
-    const processingImages = uploadedImages.map(img => ({
-      ...img,
-      status: 'processing' as const
-    }));
-    setUploadedImages(processingImages);
-    
-    // Poll for status updates
-    const pollInterval = setInterval(async () => {
-      try {
-        const status = await imageProcessingService.getBatchStatus(batchId);
-        
-        // Update processed count
-        setProcessedCount(status.processedCount);
-        
-        // Update image statuses
-        const updatedImages = [...processingImages];
-        
-        let allCompleted = true;
-        for (let i = 0; i < status.images.length; i++) {
-          const imgInfo = status.images[i];
+    try {
+      // Convert data URLs to File objects
+      const files = await Promise.all(
+        uploadedImages.map(async (img, index) => {
+          // For data URLs that start with "data:image/jpeg;base64," or similar
+          const dataUrlParts = img.original.split(',');
+          const mimeMatch = dataUrlParts[0].match(/:(.*?);/);
+          const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+          const byteString = atob(dataUrlParts[1]);
+          const arrayBuffer = new ArrayBuffer(byteString.length);
+          const uint8Array = new Uint8Array(arrayBuffer);
           
-          if (i < updatedImages.length) {
-            updatedImages[i].status = imgInfo.status as any;
-            
-            if (imgInfo.error) {
-              updatedImages[i].error = imgInfo.error;
-            }
-            
-            // If this image is completed but we don't have the processed version yet
-            if (imgInfo.status === 'completed' && !updatedImages[i].processed) {
-              try {
-                const processedImageData = await imageProcessingService.getProcessedImage(batchId, i);
-                updatedImages[i].processed = processedImageData;
-              } catch (e) {
-                console.error(`Error getting processed image ${i}:`, e);
-              }
-            }
-            
-            // Check if this image is still in progress
-            if (imgInfo.status !== 'completed' && imgInfo.status !== 'failed') {
-              allCompleted = false;
+          for (let i = 0; i < byteString.length; i++) {
+            uint8Array[i] = byteString.charCodeAt(i);
+          }
+          
+          const blob = new Blob([arrayBuffer], { type: mime });
+          return new File([blob], `image-${index}.${mime.split('/')[1]}`, { type: mime });
+        })
+      );
+      
+      // Start batch processing with simplified parameters
+      const result = await imageProcessingService.startSimpleBatchProcessing(
+        files,
+        background,
+        exportFormat,
+        exportSize
+      );
+      
+      const batchId = result.batchId;
+      setCurrentBatchId(batchId);
+      
+      // Set all images to "processing" status
+      const processingImages = uploadedImages.map(img => ({
+        ...img,
+        status: 'processing' as const
+      }));
+      setUploadedImages(processingImages);
+      
+      // First check of batch status
+      await checkBatchStatus(batchId);
+      
+    } catch (error) {
+      console.error('Error starting batch processing:', error);
+      setIsProcessing(false);
+      setCurrentBatchId(null);
+    }
+  };
+
+  const checkBatchStatus = async (batchId: string) => {
+    try {
+      const status = await imageProcessingService.getBatchStatus(batchId);
+      
+      // Update processed count
+      setProcessedCount(status.processedCount);
+      
+      // Update image statuses
+      const updatedImages = [...uploadedImages];
+      
+      let allCompleted = true;
+      for (let i = 0; i < status.images.length; i++) {
+        const imgInfo = status.images[i];
+        
+        if (i < updatedImages.length) {
+          updatedImages[i].status = imgInfo.status as any;
+          
+          if (imgInfo.error) {
+            updatedImages[i].error = imgInfo.error;
+          }
+          
+          // If this image is completed but we don't have the processed version yet
+          if (imgInfo.status === 'completed' && !updatedImages[i].processed) {
+            try {
+              const processedImageData = await imageProcessingService.getProcessedImage(batchId, i);
+              updatedImages[i].processed = processedImageData;
+            } catch (e) {
+              console.error(`Error getting processed image ${i}:`, e);
             }
           }
+          
+          // Check if this image is still in progress
+          if (imgInfo.status !== 'completed' && imgInfo.status !== 'failed') {
+            allCompleted = false;
+          }
         }
-        
-        setUploadedImages(updatedImages);
-        
-        // If all images are processed, stop polling
-        if (status.completed || allCompleted) {
-          clearInterval(pollInterval);
-          setIsProcessing(false);
-        }
-      } catch (error) {
-        console.error('Error checking batch status:', error);
-        clearInterval(pollInterval);
+      }
+      
+      setUploadedImages(updatedImages);
+      
+      // If all images are processed, stop polling
+      if (status.completed || allCompleted) {
         setIsProcessing(false);
       }
-    }, 2000); // Check every 2 seconds
-    
-  } catch (error) {
-    console.error('Error starting batch processing:', error);
-    setIsProcessing(false);
-  }
-};
-
-const downloadAllImages = () => {
-  // Create a zip file with all processed images
-  // For simplicity, we'll just download them one by one
-  uploadedImages.forEach((image, index) => {
-    if (image.processed && image.status === 'completed') {
-      const link = document.createElement('a');
-      
-      // If it's a blob URL
-      if (image.processed.startsWith('blob:')) {
-        link.href = image.processed;
-      } 
-      // If it's a data URL
-      else {
-        link.href = image.processed;
-      }
-      
-      link.download = `processed-image-${index + 1}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error checking batch status:', error);
+      setIsProcessing(false);
     }
-  });
-};
+  };
+
+  const downloadAllImages = () => {
+    // Create a zip file with all processed images
+    // For simplicity, we'll just download them one by one
+    uploadedImages.forEach((image, index) => {
+      if (image.processed && image.status === 'completed') {
+        const link = document.createElement('a');
+        
+        // If it's a blob URL
+        if (image.processed.startsWith('blob:')) {
+          link.href = image.processed;
+        } 
+        // If it's a data URL
+        else {
+          link.href = image.processed;
+        }
+        
+        link.download = `processed-image-${index + 1}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    });
+  };
+
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
@@ -219,11 +230,29 @@ const downloadAllImages = () => {
                   Upload Images
                 </h2>
                 
-                <ImageUploader 
-                  onUpload={handleImageUpload} 
-                  multiple={true}
-                  className="mb-6"
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div>
+                    <ImageUploader 
+                      onUpload={handleImageUpload} 
+                      multiple={true}
+                    />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-medium mb-3 text-center">Take a Photo</h3>
+                    <div 
+                      className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500 transition-colors"
+                      onClick={() => setShowCamera(true)}
+                    >
+                      <div className="flex flex-col items-center justify-center">
+                        <div className="w-16 h-16 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center mb-2">
+                          <CameraIcon size={32} />
+                        </div>
+                        <span className="text-lg text-indigo-600 font-medium">Use Camera</span>
+                        <p className="mt-2 text-sm text-gray-500">Take a photo with your device camera</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
                 
                 {uploadedImages.length > 0 && (
                   <div>
@@ -328,22 +357,6 @@ const downloadAllImages = () => {
                   </div>
                   
                   <div>
-                    <h3 className="font-medium text-gray-700 mb-3">Clothes</h3>
-                    <ClothesSelector 
-                      onSelect={handleClothesChange}
-                      currentClothes={clothes}
-                    />
-                  </div>
-                  
-                  <div>
-                    <h3 className="font-medium text-gray-700 mb-3">Enhancement</h3>
-                    <EnhancementControls 
-                      options={enhanceOptions}
-                      onChange={handleEnhanceChange}
-                    />
-                  </div>
-                  
-                  <div>
                     <h3 className="font-medium text-gray-700 mb-3">Export Options</h3>
                     <div className="space-y-3">
                       <div>
@@ -390,6 +403,14 @@ const downloadAllImages = () => {
           </div>
         </div>
       </main>
+      
+      {/* Inline Camera Modal */}
+      {showCamera && (
+        <InlineCamera 
+          onCapture={handleCameraCapture} 
+          onClose={() => setShowCamera(false)}
+        />
+      )}
       
       <Footer />
     </div>
