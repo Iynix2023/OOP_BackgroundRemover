@@ -1,6 +1,6 @@
 import { BackgroundOptions, EnhanceOptions, CropArea, ComplianceResult } from '../types';
 
-const API_URL = 'http://localhost:8080'; 
+const API_URL = 'http://localhost:8080';
 
 // This service handles all image processing functionality
 class ImageProcessingService {
@@ -112,26 +112,26 @@ class ImageProcessingService {
     options: EnhanceOptions
   ): Promise<string> {
     console.log("Sending enhance request with options:", options);
-    
+
     // Convert blob URL to base64 if needed
     const processedImageData = await this.blobUrlToBase64(imageData);
-    
+
     const formData = new FormData();
     formData.append('image', processedImageData);
     formData.append('options', JSON.stringify(options));
-    
+
     try {
       const response = await fetch('http://localhost:8080/api/image/enhance', {
         method: 'POST',
         body: formData
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Server error:', errorText);
         throw new Error(`Failed to enhance image: ${response.status} ${response.statusText}`);
       }
-      
+
       const blob = await response.blob();
       return URL.createObjectURL(blob);
     } catch (error) {
@@ -144,19 +144,19 @@ class ImageProcessingService {
     try {
       // Convert blob URL to base64 if needed
       const processedImageData = await this.blobUrlToBase64(imageData);
-      
+
       const formData = new FormData();
       formData.append('image', processedImageData);
-      
+
       const response = await fetch('http://localhost:8080/api/image/analyze', {
         method: 'POST',
         body: formData
       });
-      
+
       if (!response.ok) {
         throw new Error(`Analysis failed: ${response.status}`);
       }
-      
+
       const params = await response.json();
       return {
         brightness: params.brightness || 0,
@@ -168,7 +168,7 @@ class ImageProcessingService {
       // Fall back to default values
       return {
         brightness: 5,
-        contrast: 10, 
+        contrast: 10,
         saturation: 5,
       };
     }
@@ -250,25 +250,29 @@ class ImageProcessingService {
   async startSimpleBatchProcessing(
     files: File[],
     background: BackgroundOptions,
+    enhanceOptions: EnhanceOptions,
     exportFormat: string,
     exportSize: string
   ): Promise<{ batchId: string }> {
     try {
       const formData = new FormData();
-      
+
       // Add files to FormData
       files.forEach(file => {
         formData.append('files', file);
       });
-      
+
       // Add background options
       formData.append('backgroundType', background.type);
       formData.append('backgroundValue', background.value);
-      
+      formData.append('brightness', enhanceOptions.brightness.toString());
+      formData.append('contrast', enhanceOptions.contrast.toString());
+      formData.append('saturation', enhanceOptions.saturation.toString());
+
       // Add export options
       formData.append('exportFormat', exportFormat);
       formData.append('exportSize', exportSize);
-      
+
       const response = await fetch('/api/batch/process', {
         method: 'POST',
         body: formData,
@@ -293,11 +297,11 @@ class ImageProcessingService {
   async getBatchStatus(batchId: string): Promise<any> {
     try {
       const response = await fetch(`/api/batch/status/${batchId}`);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to get batch status: ${response.status}`);
       }
-      
+
       return await response.json();
     } catch (error) {
       console.error('Error checking batch status:', error);
@@ -311,11 +315,11 @@ class ImageProcessingService {
   async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
     try {
       const response = await fetch(`/api/batch/result/${batchId}/${imageIndex}`);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to get processed image: ${response.status}`);
       }
-      
+
       // Convert response to blob and create an object URL
       const blob = await response.blob();
       return URL.createObjectURL(blob);
@@ -444,7 +448,7 @@ class ImageProcessingService {
     if (url.startsWith('data:')) {
       return url;
     }
-    
+
     // If it's a blob URL, fetch it and convert to base64
     try {
       const response = await fetch(url);

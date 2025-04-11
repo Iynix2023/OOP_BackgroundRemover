@@ -147,7 +147,7 @@ const ProcessPage: React.FC = () => {
 
   // Modify the step change logic to capture the image before enhancement
   useEffect(() => {
-    if (step === 5 && processedImage && !preEnhancementImage) {
+    if (step === 4 && processedImage && !preEnhancementImage) {
       // Store the image right before entering the enhancement step
       setPreEnhancementImage(processedImage);
     }

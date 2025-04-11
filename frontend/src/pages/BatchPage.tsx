@@ -7,6 +7,8 @@ import BackgroundSelector from '../components/BackgroundSelector';
 import InlineCamera from '../components/InlineCamera';
 import { BackgroundOptions } from '../types';
 import imageProcessingService from '../services/imageProcessingService';
+import EnhancementControls from '../components/EnhancementControls';
+import { EnhanceOptions } from '../types';
 
 interface ProcessedBatchImage {
   original: string;
@@ -24,17 +26,18 @@ const BatchPage: React.FC = () => {
   const [exportSize, setExportSize] = useState<string>('35x45');
   const [showCamera, setShowCamera] = useState<boolean>(false);
   const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
+  const [enhanceOptions, setEnhanceOptions] = useState<EnhanceOptions>({ brightness: 0, contrast: 0, saturation: 0 });
 
   // Check batch status periodically
   useEffect(() => {
     let pollTimer: number | null = null;
-    
+
     if (isProcessing && currentBatchId) {
       pollTimer = window.setInterval(async () => {
         await checkBatchStatus(currentBatchId);
       }, 2000);
     }
-    
+
     return () => {
       if (pollTimer !== null) {
         window.clearInterval(pollTimer);
@@ -44,18 +47,18 @@ const BatchPage: React.FC = () => {
 
   const handleImageUpload = (files: File[]) => {
     const newImages: ProcessedBatchImage[] = [];
-    
+
     files.forEach(file => {
       const reader = new FileReader();
       reader.onload = (e) => {
         const imageData = e.target?.result as string;
-        
+
         newImages.push({
           original: imageData,
           processed: null,
           status: 'pending'
         });
-        
+
         // Update state after all images are loaded
         if (newImages.length === files.length) {
           setUploadedImages([...uploadedImages, ...newImages]);
@@ -86,10 +89,10 @@ const BatchPage: React.FC = () => {
 
   const startProcessing = async () => {
     if (uploadedImages.length === 0 || isProcessing) return;
-    
+
     setIsProcessing(true);
     setProcessedCount(0);
-    
+
     try {
       // Convert data URLs to File objects
       const files = await Promise.all(
@@ -101,37 +104,38 @@ const BatchPage: React.FC = () => {
           const byteString = atob(dataUrlParts[1]);
           const arrayBuffer = new ArrayBuffer(byteString.length);
           const uint8Array = new Uint8Array(arrayBuffer);
-          
+
           for (let i = 0; i < byteString.length; i++) {
             uint8Array[i] = byteString.charCodeAt(i);
           }
-          
+
           const blob = new Blob([arrayBuffer], { type: mime });
           return new File([blob], `image-${index}.${mime.split('/')[1]}`, { type: mime });
         })
       );
-      
+
       // Start batch processing with simplified parameters
       const result = await imageProcessingService.startSimpleBatchProcessing(
         files,
         background,
+        enhanceOptions,
         exportFormat,
         exportSize
       );
-      
+
       const batchId = result.batchId;
       setCurrentBatchId(batchId);
-      
+
       // Set all images to "processing" status
       const processingImages = uploadedImages.map(img => ({
         ...img,
         status: 'processing' as const
       }));
       setUploadedImages(processingImages);
-      
+
       // First check of batch status
       await checkBatchStatus(batchId);
-      
+
     } catch (error) {
       console.error('Error starting batch processing:', error);
       setIsProcessing(false);
@@ -142,24 +146,24 @@ const BatchPage: React.FC = () => {
   const checkBatchStatus = async (batchId: string) => {
     try {
       const status = await imageProcessingService.getBatchStatus(batchId);
-      
+
       // Update processed count
       setProcessedCount(status.processedCount);
-      
+
       // Update image statuses
       const updatedImages = [...uploadedImages];
-      
+
       let allCompleted = true;
       for (let i = 0; i < status.images.length; i++) {
         const imgInfo = status.images[i];
-        
+
         if (i < updatedImages.length) {
           updatedImages[i].status = imgInfo.status as any;
-          
+
           if (imgInfo.error) {
             updatedImages[i].error = imgInfo.error;
           }
-          
+
           // If this image is completed but we don't have the processed version yet
           if (imgInfo.status === 'completed' && !updatedImages[i].processed) {
             try {
@@ -169,16 +173,16 @@ const BatchPage: React.FC = () => {
               console.error(`Error getting processed image ${i}:`, e);
             }
           }
-          
+
           // Check if this image is still in progress
           if (imgInfo.status !== 'completed' && imgInfo.status !== 'failed') {
             allCompleted = false;
           }
         }
       }
-      
+
       setUploadedImages(updatedImages);
-      
+
       // If all images are processed, stop polling
       if (status.completed || allCompleted) {
         setIsProcessing(false);
@@ -195,16 +199,16 @@ const BatchPage: React.FC = () => {
     uploadedImages.forEach((image, index) => {
       if (image.processed && image.status === 'completed') {
         const link = document.createElement('a');
-        
+
         // If it's a blob URL
         if (image.processed.startsWith('blob:')) {
           link.href = image.processed;
-        } 
+        }
         // If it's a data URL
         else {
           link.href = image.processed;
         }
-        
+
         link.download = `processed-image-${index + 1}.png`;
         document.body.appendChild(link);
         link.click();
@@ -216,11 +220,11 @@ const BatchPage: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      
+
       <main className="flex-grow py-8">
         <div className="container mx-auto px-4">
           <h1 className="text-3xl font-bold mb-8">Batch Processing</h1>
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left Column - Image Upload */}
             <div className="lg:col-span-2">
@@ -229,17 +233,17 @@ const BatchPage: React.FC = () => {
                   <Upload size={20} className="mr-2 text-indigo-600" />
                   Upload Images
                 </h2>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                   <div>
-                    <ImageUploader 
-                      onUpload={handleImageUpload} 
+                    <ImageUploader
+                      onUpload={handleImageUpload}
                       multiple={true}
                     />
                   </div>
                   <div>
                     <h3 className="text-lg font-medium mb-3 text-center">Take a Photo</h3>
-                    <div 
+                    <div
                       className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-indigo-500 transition-colors"
                       onClick={() => setShowCamera(true)}
                     >
@@ -253,12 +257,12 @@ const BatchPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 {uploadedImages.length > 0 && (
                   <div>
                     <div className="flex justify-between items-center mb-3">
                       <h3 className="font-medium">Uploaded Images ({uploadedImages.length})</h3>
-                      <button 
+                      <button
                         onClick={() => setUploadedImages([])}
                         className="text-sm text-red-600 hover:text-red-800"
                         disabled={isProcessing}
@@ -266,14 +270,14 @@ const BatchPage: React.FC = () => {
                         Clear All
                       </button>
                     </div>
-                    
+
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                       {uploadedImages.map((image, index) => (
                         <div key={index} className="relative group">
                           <div className="aspect-w-3 aspect-h-4 bg-gray-100 rounded-md overflow-hidden">
-                            <img 
-                              src={image.processed || image.original} 
-                              alt={`Upload ${index + 1}`} 
+                            <img
+                              src={image.processed || image.original}
+                              alt={`Upload ${index + 1}`}
                               className="object-cover w-full h-full"
                             />
                             {image.status === 'processing' && (
@@ -305,30 +309,30 @@ const BatchPage: React.FC = () => {
                   </div>
                 )}
               </div>
-              
+
               {isProcessing && (
                 <div className="bg-white rounded-lg shadow-md p-6">
                   <h2 className="text-xl font-semibold mb-4">Processing Status</h2>
-                  
+
                   <div className="mb-4">
                     <div className="flex justify-between mb-2">
                       <span>Progress</span>
                       <span>{processedCount} of {uploadedImages.length}</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2.5">
-                      <div 
-                        className="bg-indigo-600 h-2.5 rounded-full" 
+                      <div
+                        className="bg-indigo-600 h-2.5 rounded-full"
                         style={{ width: `${(processedCount / uploadedImages.length) * 100}%` }}
                       ></div>
                     </div>
                   </div>
                 </div>
               )}
-              
+
               {processedCount > 0 && processedCount === uploadedImages.length && (
                 <div className="bg-white rounded-lg shadow-md p-6">
                   <h2 className="text-xl font-semibold mb-4">Processing Complete</h2>
-                  <button 
+                  <button
                     onClick={downloadAllImages}
                     className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
                   >
@@ -338,7 +342,7 @@ const BatchPage: React.FC = () => {
                 </div>
               )}
             </div>
-            
+
             {/* Right Column - Settings */}
             <div>
               <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -346,22 +350,29 @@ const BatchPage: React.FC = () => {
                   <Settings size={20} className="mr-2 text-indigo-600" />
                   Processing Settings
                 </h2>
-                
+
                 <div className="space-y-6">
                   <div>
                     <h3 className="font-medium text-gray-700 mb-3">Background</h3>
-                    <BackgroundSelector 
+                    <BackgroundSelector
                       onSelect={handleBackgroundChange}
                       currentBackground={background}
                     />
                   </div>
-                  
+                  <div>
+                    <h3 className="font-medium text-gray-700 mb-3">Image Enhancement</h3>
+                    <EnhancementControls
+                      options={enhanceOptions}
+                      onChange={setEnhanceOptions}
+                      preEnhancementImage={null}
+                    />
+                  </div>
                   <div>
                     <h3 className="font-medium text-gray-700 mb-3">Export Options</h3>
                     <div className="space-y-3">
                       <div>
                         <label className="block text-sm text-gray-600 mb-1">Format</label>
-                        <select 
+                        <select
                           className="w-full border border-gray-300 rounded-md px-3 py-2"
                           value={exportFormat}
                           onChange={(e) => setExportFormat(e.target.value)}
@@ -372,7 +383,7 @@ const BatchPage: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-sm text-gray-600 mb-1">Size</label>
-                        <select 
+                        <select
                           className="w-full border border-gray-300 rounded-md px-3 py-2"
                           value={exportSize}
                           onChange={(e) => setExportSize(e.target.value)}
@@ -386,7 +397,7 @@ const BatchPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-              
+
               <button
                 onClick={startProcessing}
                 disabled={uploadedImages.length === 0 || isProcessing}
@@ -403,15 +414,15 @@ const BatchPage: React.FC = () => {
           </div>
         </div>
       </main>
-      
+
       {/* Inline Camera Modal */}
       {showCamera && (
-        <InlineCamera 
-          onCapture={handleCameraCapture} 
+        <InlineCamera
+          onCapture={handleCameraCapture}
           onClose={() => setShowCamera(false)}
         />
       )}
-      
+
       <Footer />
     </div>
   );
