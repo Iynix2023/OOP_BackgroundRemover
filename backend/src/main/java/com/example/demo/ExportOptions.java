@@ -1,9 +1,11 @@
 package com.example.demo;
- 
+
 public class ExportOptions {
     private ExportFormat format;
     private ExportSize size;
     private ExportLayout layout;
+    private Integer customWidth;
+    private Integer customHeight;
     
     // Default constructor
     public ExportOptions() {
@@ -16,6 +18,14 @@ public class ExportOptions {
         this.layout = layout;
     }
     
+    // Constructor with custom dimensions
+    public ExportOptions(ExportFormat format, ExportSize size, ExportLayout layout, Integer customWidth, Integer customHeight) {
+        this.format = format;
+        this.size = size;
+        this.layout = layout;
+        this.customWidth = customWidth;
+        this.customHeight = customHeight;
+    }
     
     // Getters and setters
     public ExportFormat getFormat() {
@@ -42,6 +52,21 @@ public class ExportOptions {
         this.layout = layout;
     }
     
+    public Integer getCustomWidth() {
+        return customWidth;
+    }
+    
+    public void setCustomWidth(Integer customWidth) {
+        this.customWidth = customWidth;
+    }
+    
+    public Integer getCustomHeight() {
+        return customHeight;
+    }
+    
+    public void setCustomHeight(Integer customHeight) {
+        this.customHeight = customHeight;
+    }
     
     public enum ExportFormat {
         JPEG,
@@ -56,7 +81,7 @@ public class ExportOptions {
         AUSTRALIA_VISA,      // Australia Visa (35x45mm)
         INDIA_PASSPORT,      // Indian Passport/Visa (35x35mm)
         SMU_ID,              // SMU Student ID
-        CUSTOM               // Custom size            // Custom size
+        CUSTOM               // Custom size
     }
     
     public enum ExportLayout {

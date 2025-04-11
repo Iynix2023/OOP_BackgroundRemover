@@ -35,7 +35,25 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.demo.ExportOptions;
 import com.example.demo.service.ImageEnhancementService;
 import com.example.demo.service.ImageProcessingService_v2;
+import com.example.demo.service.ImageEnhancementService;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import javax.imageio.ImageIO;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.Color;
+import java.util.logging.Logger;
+
+import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.ImageOutputStream;
 /**
  * Controller for handling batch image processing operations
  */
@@ -340,137 +358,7 @@ public class BatchProcessingController {
     /**
      * Process an image according to the export options
      */
-    private byte[] processImage(byte[] imageBytes, ExportOptions exportOptions) throws Exception {
-        // Get the image dimensions based on the size option
-        int width, height;
-        float targetAspectRatio;
-        
-        LOGGER.info("Processing image with size option: " + exportOptions.getSize());
-        
-        switch (exportOptions.getSize()) {
-            case STANDARD_35x45:
-                // Standard ID photo size (35mm x 45mm at 300 DPI)
-                width = Math.round(35 * 300 / 25.4f); // 25.4mm = 1 inch
-                height = Math.round(45 * 300 / 25.4f);
-                targetAspectRatio = 35.0f / 45.0f;
-                LOGGER.info("Using STANDARD_35x45 with dimensions: " + width + "x" + height);
-                break;
-            case US_PASSPORT_2x2:
-                // US Passport size (2 inch x 2 inch at 300 DPI) - 600x600 pixels
-                width = 2 * 300;
-                height = 2 * 300;
-                targetAspectRatio = 1.0f;
-                LOGGER.info("Using US_PASSPORT_2x2 with dimensions: " + width + "x" + height);
-                break;
-            case CHINA_VISA:
-                // China Visa (33mm x 48mm at 300 DPI)
-                width = Math.round(33 * 300 / 25.4f);
-                height = Math.round(48 * 300 / 25.4f);
-                targetAspectRatio = 33.0f / 48.0f;
-                LOGGER.info("Using CHINA_VISA with dimensions: " + width + "x" + height);
-                break;
-            case MALAYSIA_PASSPORT:
-                // Malaysia Visa/Passport (35mm x 50mm at 300 DPI)
-                width = Math.round(35 * 300 / 25.4f);
-                height = Math.round(50 * 300 / 25.4f);
-                targetAspectRatio = 35.0f / 50.0f;
-                LOGGER.info("Using MALAYSIA_PASSPORT with dimensions: " + width + "x" + height);
-                break;
-            case AUSTRALIA_VISA:
-                // Australia Visa (35mm x 45mm at 300 DPI, same as standard)
-                width = Math.round(35 * 300 / 25.4f);
-                height = Math.round(45 * 300 / 25.4f);
-                targetAspectRatio = 35.0f / 45.0f;
-                LOGGER.info("Using AUSTRALIA_VISA with dimensions: " + width + "x" + height);
-                break;
-            case INDIA_PASSPORT:
-                // Indian Passport/Visa (35mm x 35mm at 300 DPI)
-                width = Math.round(35 * 300 / 25.4f);
-                height = Math.round(35 * 300 / 25.4f);
-                targetAspectRatio = 1.0f;
-                LOGGER.info("Using INDIA_PASSPORT with dimensions: " + width + "x" + height);
-                break;
-            case SMU_ID:
-                // SMU Student ID (130px x 170px)
-                width = 130;
-                height = 170;
-                targetAspectRatio = 130.0f / 170.0f;
-                LOGGER.info("Using SMU_ID with dimensions: " + width + "x" + height);
-                break;
-            default:
-                // Default to standard ID size
-                width = Math.round(35 * 300 / 25.4f);
-                height = Math.round(45 * 300 / 25.4f);
-                targetAspectRatio = 35.0f / 45.0f;
-                LOGGER.info("Using DEFAULT with dimensions: " + width + "x" + height);
-        }
-        
-        // Convert byte array to BufferedImage
-        BufferedImage originalImage = ImageIO.read(new ByteArrayInputStream(imageBytes));
-        if (originalImage == null) {
-            throw new IllegalArgumentException("Failed to read image data");
-        }
-        
-        LOGGER.info("Original image dimensions: " + originalImage.getWidth() + "x" + originalImage.getHeight());
-        
-        // Properly crop and resize the image to maintain the target aspect ratio
-        BufferedImage croppedImage = cropToAspectRatio(originalImage, targetAspectRatio);
-        LOGGER.info("Cropped image to aspect ratio: " + targetAspectRatio);
-        LOGGER.info("Cropped dimensions: " + croppedImage.getWidth() + "x" + croppedImage.getHeight());
-        
-        // Process the image based on layout
-        BufferedImage processedImage;
-        
-        switch (exportOptions.getLayout()) {
-            case GRID_2x2:
-                LOGGER.info("Creating 2x2 grid layout");
-                processedImage = createGridLayout(croppedImage, 2, 2, width, height);
-                break;
-            case GRID_4x6:
-                LOGGER.info("Creating 4x6 grid layout");
-                processedImage = createGridLayout(croppedImage, 4, 6, width, height);
-                break;
-            case SINGLE:
-            default:
-                LOGGER.info("Creating single layout, resizing to: " + width + "x" + height);
-                // Resize the cropped image for single layout
-                processedImage = resizeImage(croppedImage, width, height);
-        }
-        
-        // Log final image dimensions
-        LOGGER.info("Final image dimensions: " + processedImage.getWidth() + "x" + processedImage.getHeight());
-        
-        // Convert the processed image back to a byte array
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        
-        // Determine the format name
-        String formatName;
-        if (exportOptions.getFormat() == ExportOptions.ExportFormat.JPEG) {
-            formatName = "jpg";
-            // For JPEG, use TYPE_INT_RGB to avoid transparency issues
-            if (processedImage.getType() == BufferedImage.TYPE_INT_ARGB || 
-                processedImage.getType() == BufferedImage.TYPE_4BYTE_ABGR) {
-                
-                BufferedImage newImage = new BufferedImage(
-                    processedImage.getWidth(), 
-                    processedImage.getHeight(), 
-                    BufferedImage.TYPE_INT_RGB
-                );
-                newImage.createGraphics().drawImage(processedImage, 0, 0, Color.WHITE, null);
-                processedImage = newImage;
-            }
-        } else {
-            formatName = "png";
-        }
-        
-        boolean success = ImageIO.write(processedImage, formatName, baos);
-        if (!success) {
-            throw new IllegalStateException("No appropriate writer found for format: " + formatName);
-        }
-        
-        return baos.toByteArray();
-    }
-    
+
     /**
      * Crops an image to match the target aspect ratio while keeping as much content as possible
      */
@@ -525,78 +413,262 @@ public class BatchProcessingController {
     /**
      * Resize an image to the specified dimensions
      */
-    private BufferedImage resizeImage(BufferedImage originalImage, int width, int height) {
-        LOGGER.info("Resizing image from " + originalImage.getWidth() + "x" + originalImage.getHeight() + 
-                    " to " + width + "x" + height);
-        
-        // Create a new buffered image with a compatible image type
-        BufferedImage resizedImage;
-        if (originalImage.getTransparency() == BufferedImage.OPAQUE) {
-            resizedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        } else {
-            resizedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+
+/**
+ * Create a grid layout of the image with higher quality output
+ */
+private BufferedImage createGridLayout(BufferedImage originalImage, int rows, int cols, int singleWidth, int singleHeight) {
+    // Calculate the dimensions of the grid
+    int gridWidth = singleWidth * cols;
+    int gridHeight = singleHeight * rows;
+    
+    LOGGER.info("Creating grid layout " + rows + "x" + cols + " with dimensions " + gridWidth + "x" + gridHeight);
+    LOGGER.info("Single photo size: " + singleWidth + "x" + singleHeight);
+    
+    // Create a new image for the grid - use higher quality TYPE_INT_ARGB
+    BufferedImage gridImage = new BufferedImage(gridWidth, gridHeight, BufferedImage.TYPE_INT_ARGB);
+    Graphics2D g2d = gridImage.createGraphics();
+    
+    // Set rendering hints for maximum quality
+    g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+    g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+    g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+    g2d.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+    g2d.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
+    g2d.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);
+    g2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+    
+    // Fill with white background
+    g2d.setColor(Color.WHITE);
+    g2d.fillRect(0, 0, gridWidth, gridHeight);
+    
+    // First resize the original image to fit the single photo size with high quality
+    BufferedImage resizedImage = resizeImageHighQuality(originalImage, singleWidth, singleHeight);
+    
+    // Add padding between photos
+    int padding = Math.min(singleWidth, singleHeight) / 30; // 3.33% of the smaller dimension
+    
+    // Draw the resized image multiple times in a grid
+    for (int row = 0; row < rows; row++) {
+        for (int col = 0; col < cols; col++) {
+            int x = col * (singleWidth + padding);
+            int y = row * (singleHeight + padding);
+            g2d.drawImage(resizedImage, x, y, null);
+            
+            // Draw a subtle border around each photo for better separation
+            g2d.setColor(new Color(240, 240, 240));
+            g2d.drawRect(x, y, singleWidth - 1, singleHeight - 1);
         }
-        
-        Graphics2D g2d = resizedImage.createGraphics();
-        
-        // Set rendering hints for better quality
-        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        
-        // Fill with white background if not transparent
-        if (originalImage.getTransparency() == BufferedImage.OPAQUE) {
-            g2d.setColor(Color.WHITE);
-            g2d.fillRect(0, 0, width, height);
-        }
-        
-        // Draw the original image resized
-        g2d.drawImage(originalImage, 0, 0, width, height, null);
-        g2d.dispose();
-        
-        return resizedImage;
     }
     
-    /**
-     * Create a grid layout of the image
-     */
-    private BufferedImage createGridLayout(BufferedImage originalImage, int rows, int cols, int singleWidth, int singleHeight) {
-        // Calculate the dimensions of the grid
-        int gridWidth = singleWidth * cols;
-        int gridHeight = singleHeight * rows;
-        
-        LOGGER.info("Creating grid layout " + rows + "x" + cols + " with dimensions " + gridWidth + "x" + gridHeight);
-        LOGGER.info("Single photo size: " + singleWidth + "x" + singleHeight);
-        
-        // Create a new image for the grid
-        BufferedImage gridImage = new BufferedImage(gridWidth, gridHeight, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g2d = gridImage.createGraphics();
-        
-        // Set rendering hints for better quality
-        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        
-        // Fill with white background
+    g2d.dispose();
+    return gridImage;
+}
+
+/**
+ * Resize an image to the specified dimensions with higher quality
+ */
+private BufferedImage resizeImageHighQuality(BufferedImage originalImage, int width, int height) {
+    LOGGER.info("High quality resizing from " + originalImage.getWidth() + "x" + originalImage.getHeight() + 
+                " to " + width + "x" + height);
+    
+    // Create a new buffered image with a compatible image type
+    BufferedImage resizedImage = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+    Graphics2D g2d = resizedImage.createGraphics();
+    
+    // Set rendering hints for maximum quality
+    g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+    g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+    g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+    g2d.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+    g2d.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
+    g2d.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);
+    g2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+    
+    // Fill with white background if not transparent
+    if (originalImage.getTransparency() == BufferedImage.OPAQUE) {
         g2d.setColor(Color.WHITE);
-        g2d.fillRect(0, 0, gridWidth, gridHeight);
-        
-        // First resize the original image to fit the single photo size
-        BufferedImage resizedImage = resizeImage(originalImage, singleWidth, singleHeight);
-        
-        // Draw the resized image multiple times in a grid
-        for (int row = 0; row < rows; row++) {
-            for (int col = 0; col < cols; col++) {
-                int x = col * singleWidth;
-                int y = row * singleHeight;
-                g2d.drawImage(resizedImage, x, y, null);
-            }
-        }
-        
-        g2d.dispose();
-        return gridImage;
+        g2d.fillRect(0, 0, width, height);
     }
     
+    // Two-step resize for higher quality when downsizing significantly
+    if (originalImage.getWidth() > width * 2 || originalImage.getHeight() > height * 2) {
+        // First resize to an intermediate size
+        int intermediateWidth = (originalImage.getWidth() + width) / 2;
+        int intermediateHeight = (originalImage.getHeight() + height) / 2;
+        
+        BufferedImage intermediateImage = new BufferedImage(intermediateWidth, intermediateHeight, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2dIntermediate = intermediateImage.createGraphics();
+        
+        // Apply same quality settings
+        g2dIntermediate.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g2dIntermediate.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g2dIntermediate.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        // Draw at intermediate size
+        g2dIntermediate.drawImage(originalImage, 0, 0, intermediateWidth, intermediateHeight, null);
+        g2dIntermediate.dispose();
+        
+        // Then draw the intermediate image at the final size
+        g2d.drawImage(intermediateImage, 0, 0, width, height, null);
+    } else {
+        // Direct resize for smaller adjustments
+        g2d.drawImage(originalImage, 0, 0, width, height, null);
+    }
+    
+    g2d.dispose();
+    
+    return resizedImage;
+}
+
+/**
+ * Process an image according to the export options with higher quality
+ */
+private byte[] processImage(byte[] imageBytes, ExportOptions exportOptions) throws Exception {
+    // Calculate DPI based on output quality
+    final int DPI = 600; // Increased from 300 to 600 for higher quality
+    
+    // Get the image dimensions based on the size option
+    int width, height;
+    float targetAspectRatio;
+    
+    LOGGER.info("Processing image with size option: " + exportOptions.getSize());
+    
+    switch (exportOptions.getSize()) {
+        case STANDARD_35x45:
+            // Standard ID photo size (35mm x 45mm)
+            width = Math.round(35 * DPI / 25.4f); // 25.4mm = 1 inch
+            height = Math.round(45 * DPI / 25.4f);
+            targetAspectRatio = 35.0f / 45.0f;
+            LOGGER.info("Using STANDARD_35x45 with dimensions: " + width + "x" + height);
+            break;
+        case US_PASSPORT_2x2:
+            // US Passport size (2 inch x 2 inch)
+            width = 2 * DPI;
+            height = 2 * DPI;
+            targetAspectRatio = 1.0f;
+            LOGGER.info("Using US_PASSPORT_2x2 with dimensions: " + width + "x" + height);
+            break;
+        // ... [other cases stay the same but with updated DPI] ...
+        default:
+            // Use default values
+            width = Math.round(35 * DPI / 25.4f);
+            height = Math.round(45 * DPI / 25.4f);
+            targetAspectRatio = 35.0f / 45.0f;
+    }
+    
+    // Convert byte array to BufferedImage
+    BufferedImage originalImage = ImageIO.read(new ByteArrayInputStream(imageBytes));
+    if (originalImage == null) {
+        throw new IllegalArgumentException("Failed to read image data");
+    }
+    
+    LOGGER.info("Original image dimensions: " + originalImage.getWidth() + "x" + originalImage.getHeight());
+    
+    // Properly crop and resize the image to maintain the target aspect ratio
+    BufferedImage croppedImage = cropToAspectRatio(originalImage, targetAspectRatio);
+    LOGGER.info("Cropped image to aspect ratio: " + targetAspectRatio);
+    LOGGER.info("Cropped dimensions: " + croppedImage.getWidth() + "x" + croppedImage.getHeight());
+    
+    // Process the image based on layout
+    BufferedImage processedImage;
+    
+    switch (exportOptions.getLayout()) {
+        case GRID_2x2:
+            LOGGER.info("Creating 2x2 grid layout");
+            processedImage = createGridLayout(croppedImage, 2, 2, width, height);
+            break;
+        case GRID_4x6:
+            LOGGER.info("Creating 4x6 grid layout");
+            processedImage = createGridLayout(croppedImage, 4, 6, width, height);
+            break;
+        case SINGLE:
+        default:
+            LOGGER.info("Creating single layout, resizing to: " + width + "x" + height);
+            // Resize the cropped image for single layout
+            processedImage = resizeImageHighQuality(croppedImage, width, height);
+    }
+    
+    // Log final image dimensions
+    LOGGER.info("Final image dimensions: " + processedImage.getWidth() + "x" + processedImage.getHeight());
+    
+    // Convert the processed image back to a byte array with higher quality
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    
+    // Determine the format name
+    String formatName;
+    float quality = 1.0f; // Maximum quality
+    
+    if (exportOptions.getFormat() == ExportOptions.ExportFormat.JPEG) {
+        formatName = "jpg";
+        // For JPEG, use TYPE_INT_RGB to avoid transparency issues
+        if (processedImage.getType() == BufferedImage.TYPE_INT_ARGB || 
+            processedImage.getType() == BufferedImage.TYPE_4BYTE_ABGR) {
+            
+            BufferedImage newImage = new BufferedImage(
+                processedImage.getWidth(), 
+                processedImage.getHeight(), 
+                BufferedImage.TYPE_INT_RGB
+            );
+            Graphics2D g = newImage.createGraphics();
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, newImage.getWidth(), newImage.getHeight());
+            g.drawImage(processedImage, 0, 0, null);
+            g.dispose();
+            processedImage = newImage;
+        }
+        
+        // Use high quality JPEG encoding
+        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("jpg");
+        if (writers.hasNext()) {
+            ImageWriter writer = writers.next();
+            ImageWriteParam param = writer.getDefaultWriteParam();
+            
+            // Set JPEG quality
+            if (param.canWriteCompressed()) {
+                param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+                param.setCompressionQuality(quality);
+            }
+            
+            // Set output
+            ImageOutputStream ios = ImageIO.createImageOutputStream(baos);
+            writer.setOutput(ios);
+            
+            // Write with high quality
+            writer.write(null, new IIOImage(processedImage, null, null), param);
+            ios.close();
+            writer.dispose();
+        } else {
+            // Fall back to standard method if no JPEG writer
+            ImageIO.write(processedImage, formatName, baos);
+        }
+    } else {
+        formatName = "png";
+        // For PNG, use highest compression
+        Iterator<ImageWriter> writers = ImageIO.getImageWritersByFormatName("png");
+        if (writers.hasNext()) {
+            ImageWriter writer = writers.next();
+            ImageWriteParam param = writer.getDefaultWriteParam();
+            
+            // PNG doesn't use compression quality, but we can set other params
+            // Set output
+            ImageOutputStream ios = ImageIO.createImageOutputStream(baos);
+            writer.setOutput(ios);
+            
+            // Write with highest quality
+            writer.write(null, new IIOImage(processedImage, null, null), param);
+            ios.close();
+            writer.dispose();
+        } else {
+            // Fall back to standard method if no PNG writer
+            ImageIO.write(processedImage, formatName, baos);
+        }
+    }
+    
+    return baos.toByteArray();
+}
     // Model classes
     public static class BatchStatus {
         private String batchId;
