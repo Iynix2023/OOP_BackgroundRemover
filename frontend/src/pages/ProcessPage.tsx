@@ -1,25 +1,18 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Save,
-  Undo,
-  Redo,
-  Check,
-  Camera as CameraIcon,
-} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, ArrowRight, Save, Undo, Redo, Check, Camera as CameraIcon} from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import ImageUploader from "../components/ImageUploader";
 import ImageCropper from "../components/ImageCropper";
 import BackgroundSelector from "../components/BackgroundSelector";
-import ClothesSelector from "../components/ClothesSelector";
+// import ClothesSelector from "../components/ClothesSelector";
 import EnhancementControls from "../components/EnhancementControls";
 import ComplianceChecker from "../components/ComplianceChecker";
 import InlineCamera from "../components/InlineCamera";
 import {
   BackgroundOptions,
-  ClothesOptions,
+  // ClothesOptions,
   CropArea,
   EnhanceOptions,
   ComplianceResult,
@@ -55,10 +48,10 @@ const ProcessPage: React.FC = () => {
     type: "color",
     value: "#FFFFFF",
   });
-  const [clothes, setClothes] = useState<ClothesOptions>({
-    type: "suit",
-    color: "#0A192F",
-  });
+  // const [clothes, setClothes] = useState<ClothesOptions>({
+  //   type: "suit",
+  //   color: "#0A192F",
+  // });
   const [enhanceOptions, setEnhanceOptions] = useState<EnhanceOptions>({
     brightness: 0,
     contrast: 0,
@@ -199,30 +192,30 @@ const ProcessPage: React.FC = () => {
     }
   };
 
-  const handleClothesChange = async (options: ClothesOptions) => {
-    setClothes(options);
+  // const handleClothesChange = async (options: ClothesOptions) => {
+  //   setClothes(options);
 
-    if (!processedImage) return;
+  //   if (!processedImage) return;
 
-    setIsProcessing(true);
-    try {
-      const newImage = await imageProcessingService.replaceClothes(
-        processedImage,
-        options
-      );
-      setProcessedImage(newImage);
+  //   setIsProcessing(true);
+  //   try {
+  //     const newImage = await imageProcessingService.replaceClothes(
+  //       processedImage,
+  //       options
+  //     );
+  //     setProcessedImage(newImage);
 
-      // Add to history
-      const newHistory = history.slice(0, historyIndex + 1);
-      newHistory.push(newImage);
-      setHistory(newHistory);
-      setHistoryIndex(newHistory.length - 1);
-    } catch (error) {
-      console.error("Error changing clothes:", error);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+  //     // Add to history
+  //     const newHistory = history.slice(0, historyIndex + 1);
+  //     newHistory.push(newImage);
+  //     setHistory(newHistory);
+  //     setHistoryIndex(newHistory.length - 1);
+  //   } catch (error) {
+  //     console.error("Error changing clothes:", error);
+  //   } finally {
+  //     setIsProcessing(false);
+  //   }
+  // };
 
   // Modify the step change logic to capture the image before enhancement
   useEffect(() => {
