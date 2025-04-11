@@ -618,42 +618,6 @@ const ProcessPage: React.FC = () => {
               <div className="space-y-6">
                 <ComplianceChecker result={complianceResult} />
 
-                <div className="border rounded-lg p-4">
-                  <h3 className="font-medium text-gray-700 mb-2">
-                    Export Options
-                  </h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm text-gray-600 mb-1">
-                        Format
-                      </label>
-                      <select className="w-full border border-gray-300 rounded-md px-3 py-2">
-                        <option value="jpeg">JPEG</option>
-                        <option value="png">PNG</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-600 mb-1">
-                        Size
-                      </label>
-                      <select className="w-full border border-gray-300 rounded-md px-3 py-2">
-                        <option value="35x45">35x45 mm (Standard)</option>
-                        <option value="2x2">2x2 inch (US Passport)</option>
-                        <option value="custom">Custom Size</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm text-gray-600 mb-1">
-                        Layout
-                      </label>
-                      <select className="w-full border border-gray-300 rounded-md px-3 py-2">
-                        <option value="single">Single Photo</option>
-                        <option value="2x2">2x2 Grid</option>
-                        <option value="4x6">4x6 Grid</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
                 <PhotoSheetGenerator processedImage={processedImage} />
               </div>
             </div>

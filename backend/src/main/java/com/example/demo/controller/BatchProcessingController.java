@@ -1,5 +1,22 @@
 package com.example.demo.controller;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.logging.Logger;
+
+import javax.imageio.ImageIO;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.MediaType;
@@ -7,24 +24,17 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.demo.ExportOptions;
-import com.example.demo.service.ImageProcessingService_v2;
 import com.example.demo.service.ImageEnhancementService;
-
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
-import javax.imageio.ImageIO;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.Color;
-import java.util.logging.Logger;
+import com.example.demo.service.ImageProcessingService_v2;
 
 /**
  * Controller for handling batch image processing operations
@@ -94,17 +104,6 @@ public class BatchProcessingController {
             
             LOGGER.info("Mapped exportSize to: " + exportOptions.getSize());
             
-            // Store custom dimensions if provided
-            if (exportOptions.getSize() == ExportOptions.ExportSize.CUSTOM) {
-                if (customWidth != null && customHeight != null) {
-                    exportOptions.setCustomWidth(customWidth);
-                    exportOptions.setCustomHeight(customHeight);
-                } else {
-                    // Default custom dimensions if not provided
-                    exportOptions.setCustomWidth(800);
-                    exportOptions.setCustomHeight(1000);
-                }
-            }
             
             // Map layout
             if ("single".equalsIgnoreCase(exportLayout)) {
@@ -397,13 +396,6 @@ public class BatchProcessingController {
                 height = 170;
                 targetAspectRatio = 130.0f / 170.0f;
                 LOGGER.info("Using SMU_ID with dimensions: " + width + "x" + height);
-                break;
-            case CUSTOM:
-                // For custom, use the provided dimensions or defaults
-                width = exportOptions.getCustomWidth() != null ? exportOptions.getCustomWidth() : 800;
-                height = exportOptions.getCustomHeight() != null ? exportOptions.getCustomHeight() : 1000;
-                targetAspectRatio = (float)width / (float)height;
-                LOGGER.info("Using CUSTOM with dimensions: " + width + "x" + height);
                 break;
             default:
                 // Default to standard ID size
