@@ -246,6 +246,7 @@ class ImageProcessingService {
     });
   }
 
+  // For simplified batch processing (no enhancement)
   async startSimpleBatchProcessing(
     files: File[],
     background: BackgroundOptions,
@@ -272,16 +273,54 @@ class ImageProcessingService {
         method: 'POST',
         body: formData,
       });
-  
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Error response:', errorText);
         throw new Error(`Server error: ${response.status}`);
       }
-  
+
       return await response.json();
     } catch (error) {
       console.error('Batch processing error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get the status of a batch processing job
+   */
+  async getBatchStatus(batchId: string): Promise<any> {
+    try {
+      const response = await fetch(`/api/batch/status/${batchId}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get batch status: ${response.status}`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error('Error checking batch status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get a processed image result
+   */
+  async getProcessedImage(batchId: string, imageIndex: number): Promise<string> {
+    try {
+      const response = await fetch(`/api/batch/result/${batchId}/${imageIndex}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get processed image: ${response.status}`);
+      }
+      
+      // Convert response to blob and create an object URL
+      const blob = await response.blob();
+      return URL.createObjectURL(blob);
+    } catch (error) {
+      console.error('Error getting processed image:', error);
       throw error;
     }
   }
