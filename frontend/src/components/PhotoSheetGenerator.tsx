@@ -54,8 +54,32 @@ const PhotoSheetGenerator: React.FC<PhotoSheetGeneratorProps> = ({ processedImag
     if (!processedImage) return;
     
     setIsGenerating(true);
-    try {
-      // Create a canvas to generate the sheet client-side
+      try {
+        // Use the server-side generation for high quality output
+        const result = await sheetGeneratorService.generatePhotoSheet(
+          processedImage,
+          {
+            format: exportOptions.format,
+            size: exportOptions.size,
+            layout: exportOptions.layout,
+            customWidth: customDimensions?.width,
+            customHeight: customDimensions?.height
+          }
+        );
+        
+        setSheetImage(result);
+        setIsGenerating(false);
+      } catch (error) {
+        console.error('Error generating sheet:', error);
+        
+        // Fall back to client-side generation
+        generateSheetClientSide();
+      }
+    };
+    
+    // Add this as a fallback method
+    const generateSheetClientSide = () => {
+      // Your existing canvas-based code here
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement('canvas');
@@ -223,15 +247,11 @@ const PhotoSheetGenerator: React.FC<PhotoSheetGeneratorProps> = ({ processedImag
       
       img.src = processedImage;
       
-      // Add error handling for image loading
-      img.onerror = () => {
-        console.error('Error loading image');
-        setIsGenerating(false);
-      };
-    } catch (error) {
-      console.error('Error generating sheet:', error);
+       // Add error handling for image loading
+    img.onerror = () => {
+      console.error('Error loading image');
       setIsGenerating(false);
-    }
+    };
   };
   
   const downloadSheet = () => {
