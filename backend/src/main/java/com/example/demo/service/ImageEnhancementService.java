@@ -9,7 +9,7 @@ import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.springframework.stereotype.Service;
 
-import com.example.demo.processor.model.EnhanceOptions;
+import com.example.demo.model.EnhanceOptions;
 
 import java.util.HashMap;
 import java.util.Map;

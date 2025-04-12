@@ -1,6 +1,14 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Save, Undo, Redo, Check, Camera as CameraIcon} from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Save,
+  Undo,
+  Redo,
+  Check,
+  Camera as CameraIcon,
+} from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import ImageUploader from "../components/ImageUploader";
@@ -320,24 +328,24 @@ const ProcessPage: React.FC = () => {
     }
   };
 
-  const downloadImage = () => {
-    if (!processedImage) return;
+  // const downloadImage = () => {
+  //   if (!processedImage) return;
 
-    const link = document.createElement("a");
-    link.href = processedImage;
-    link.download = "id-photo.png";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  //   const link = document.createElement("a");
+  //   link.href = processedImage;
+  //   link.download = "id-photo.png";
+  //   document.body.appendChild(link);
+  //   link.click();
+  //   document.body.removeChild(link);
+  // };
 
   const nextStep = async () => {
     // When moving from step 2 to step 3, check if we have a background-removed image
     if (step === 2 && !stepImages[2]) {
       // If background removal wasn't done, use the original image as a fallback
-      setStepImages(prev => ({
+      setStepImages((prev) => ({
         ...prev,
-        2: stepImages[1] // Use the original uploaded image
+        2: stepImages[1], // Use the original uploaded image
       }));
     } else if (step === 3 && cropArea) {
       // Then crop after background is removed
@@ -578,26 +586,6 @@ const ProcessPage: React.FC = () => {
                     />
                   </div>
                 )}
-                <div className="mt-6 flex space-x-4">
-                  {/* <button
-                    className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-                    onClick={downloadImage}
-                  >
-                    <Save size={18} className="mr-2" />
-                    Download
-                  </button>
-                  <button
-                    className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-                    onClick={() => {
-                      if (processedImage) {
-                        imageProcessingService.saveToCloud(processedImage);
-                      }
-                    }}
-                  >
-                    <Save size={18} className="mr-2" />
-                    Save to Cloud
-                  </button> */}
-                </div>
               </div>
               <div className="space-y-6">
                 <ComplianceChecker result={complianceResult} />
@@ -663,25 +651,6 @@ const ProcessPage: React.FC = () => {
                 Undo
               </button>
 
-              {/* <div className="flex space-x-4">
-                <button
-                  className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-                  onClick={handleUndo}
-                  disabled={historyIndex <= 0 || isProcessing}
-                >
-                  <Undo size={18} className="mr-2" />
-                  Undo
-                </button>
-                <button
-                  className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-                  onClick={handleRedo}
-                  disabled={historyIndex >= history.length - 1 || isProcessing}
-                >
-                  <Redo size={18} className="mr-2" />
-                  Redo
-                </button>
-              </div> */}
-
               {step < 5 ? (
                 <button
                   onClick={nextStep}
@@ -690,20 +659,20 @@ const ProcessPage: React.FC = () => {
                 >
                   Next
                   <ArrowRight size={18} className="ml-2" />
-        </button>
-      ) : (
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-          disabled={isProcessing}
-        >
-          Finish
-          <Check size={18} className="ml-2" />
-        </button>
-      )}
-    </div>
-  )}
-</div>
+                </button>
+              ) : (
+                <button
+                  onClick={() => navigate("/")}
+                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                  disabled={isProcessing}
+                >
+                  Finish
+                  <Check size={18} className="ml-2" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </main>
 
       {/* Inline Camera Modal */}

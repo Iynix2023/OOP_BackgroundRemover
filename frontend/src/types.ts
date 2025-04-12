@@ -21,10 +21,9 @@ export interface CropArea {
 }
 
 export interface BackgroundOptions {
-  type: 'color' | 'image' | 'transparent';
-  value: string; // color code or image URL
+  type: 'color' | 'transparent' | 'image';
+  value: string; // hex color or image data URL
 }
-
 
 export interface EnhanceOptions {
   brightness: number;

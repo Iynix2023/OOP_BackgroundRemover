@@ -32,25 +32,13 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.example.demo.ExportOptions;
+import com.example.demo.model.ExportOptions;
 import com.example.demo.service.ImageEnhancementService;
 import com.example.demo.service.ImageProcessingService_v2;
-import com.example.demo.service.ImageEnhancementService;
 
-import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
-import javax.imageio.ImageIO;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.Color;
-import java.util.logging.Logger;
 
 import javax.imageio.IIOImage;
-import javax.imageio.ImageIO;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
 import javax.imageio.stream.ImageOutputStream;
@@ -159,7 +147,7 @@ public class BatchProcessingController {
             batchResults.put(batchId, new ArrayList<>());
             
             // Create enhancement options object
-            com.example.demo.processor.model.EnhanceOptions enhanceOptions = new com.example.demo.processor.model.EnhanceOptions();
+            com.example.demo.model.EnhanceOptions enhanceOptions = new com.example.demo.model.EnhanceOptions();
             enhanceOptions.setBrightness(brightness);
             enhanceOptions.setContrast(contrast);
             enhanceOptions.setSaturation(saturation);
@@ -288,7 +276,7 @@ public class BatchProcessingController {
             List<MultipartFile> files, 
             String backgroundType, 
             String backgroundValue,
-            com.example.demo.processor.model.EnhanceOptions enhanceOptions,
+            com.example.demo.model.EnhanceOptions enhanceOptions,
             ExportOptions exportOptions) {
         
         BatchStatus status = batchStatuses.get(batchId);

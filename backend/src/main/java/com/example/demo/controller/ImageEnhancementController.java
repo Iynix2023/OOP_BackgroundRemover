@@ -1,6 +1,5 @@
 package com.example.demo.controller;
 
-import org.opencv.core.Core;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -8,9 +7,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.example.demo.processor.model.EnhanceOptions;
+import com.example.demo.model.EnhanceOptions;
 import com.example.demo.service.ImageEnhancementService;
-import com.example.demo.service.ImageProcessingService;
 
 import nu.pattern.OpenCV;
 

@@ -2,8 +2,9 @@
 
 package com.example.demo.service;
 
-import com.example.demo.ExportOptions;
 import org.springframework.stereotype.Service;
+
+import com.example.demo.model.ExportOptions;
 
 @Service
 public class SheetGeneratorService {
