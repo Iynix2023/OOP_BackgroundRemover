@@ -26,15 +26,15 @@ import {
   ComplianceResult,
 } from "../types";
 import imageProcessingService from "../services/imageProcessingService";
-import PhotoSheetGenerator from "../components/PhotoSheetGenerator";
+import PhotoSheetGenerator, {
+  PhotoSheetGeneratorRef,
+} from "../components/PhotoSheetGenerator";
 
 // import cloudUploadService from "../services/cloudUploadService";
 
 import { uploadToCloud } from "../services/cloudUploadService";
 
-import { ToastContainer, toast } from 'react-toastify';
-
-
+import { ToastContainer, toast } from "react-toastify";
 
 // useEffect(() => {
 //   const params = new URLSearchParams(window.location.search);
@@ -43,8 +43,6 @@ import { ToastContainer, toast } from 'react-toastify';
 //     // You could even trigger an auto-upload here if desired
 //   }
 // }, []);
-
-
 
 function base64ToBlob(base64: string, mime: string) {
   const byteString = atob(base64.split(",")[1]);
@@ -55,7 +53,6 @@ function base64ToBlob(base64: string, mime: string) {
   }
   return new Blob([intArray], { type: mime });
 }
-
 
 const ProcessPage: React.FC = () => {
   const navigate = useNavigate();
@@ -109,6 +106,12 @@ const ProcessPage: React.FC = () => {
   const [preEnhancementImage, setPreEnhancementImage] = useState<string | null>(
     null
   );
+
+  // Add a new state variable to store the sheet image
+  const [sheetImage, setSheetImage] = useState<string | null>(null);
+
+  // Ref for PhotoSheetGenerator component
+  const photoSheetGeneratorRef = useRef<PhotoSheetGeneratorRef>(null);
 
   // =======================================================================
   // Step 1: Uploading the image or getting the image through camera capture
@@ -383,7 +386,18 @@ const ProcessPage: React.FC = () => {
       await checkCompliance();
     }
 
-    setStep(step + 1);
+    const nextStepValue = step + 1;
+    setStep(nextStepValue);
+
+    // Auto-generate sheet when reaching step 5
+    if (nextStepValue === 5) {
+      // Use setTimeout to ensure the component has mounted before we call its method
+      setTimeout(() => {
+        if (photoSheetGeneratorRef.current) {
+          photoSheetGeneratorRef.current.generateSheet();
+        }
+      }, 300);
+    }
   };
 
   const prevStep = () => {
@@ -426,18 +440,16 @@ const ProcessPage: React.FC = () => {
     setStep(step - 1);
   };
 
-
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const authorized = params.get("authorized");
 
     if (authorized === "true") {
       const base64Image = localStorage.getItem("imageToUpload");
-    
+
       if (base64Image) {
         const blob = base64ToBlob(base64Image, "image/png");
-    
+
         const formData = new FormData();
         formData.append("file", blob, "id-photo.png");
         formData.append("description", "Uploaded from ID Photo Processor");
@@ -446,19 +458,24 @@ const ProcessPage: React.FC = () => {
           method: "POST",
           body: formData,
         })
-          .then(async res => {
+          .then(async (res) => {
             const result = await res.json();
             if (res.ok) {
               toast.success(
                 <>
                   ✅ Uploaded: <strong>{result.fileName}</strong> <br />
-                  <a href={result.driveUrl} target="_blank" rel="noopener noreferrer" className="underline text-blue-400">
+                  <a
+                    href={result.driveUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline text-blue-400"
+                  >
                     Open in Google Drive
                   </a>
                 </>
               );
               localStorage.removeItem("imageToUpload");
-        
+
               // Optional redirect to file (after delay)
               setTimeout(() => {
                 window.open(result.driveUrl, "_blank");
@@ -470,8 +487,7 @@ const ProcessPage: React.FC = () => {
           .catch((err) => {
             toast.error("Upload error: " + err.message);
           });
-        
-    
+
         // fetch("http://localhost:8080/upload", {
         //   method: "POST",
         //   body: formData,
@@ -520,14 +536,14 @@ const ProcessPage: React.FC = () => {
       // } else {
       //   alert("You're authorized, but there's no image to upload.");
       // }
-    
+
       // Clean up the URL
       const url = new URL(window.location.href);
       url.searchParams.delete("authorized");
       window.history.replaceState({}, document.title, url.toString());
     }
-  }, []);  
-  
+  }, []);
+
   //   if (authorized === "true") {
   //     if (processedImage) {
   //       uploadToCloud(processedImage)
@@ -536,13 +552,18 @@ const ProcessPage: React.FC = () => {
   //     } else {
   //       alert("You're authorized, but there's no image to upload.");
   //     }
-  
+
   //     // Optional: Clean up the URL to remove ?authorized=true
   //     const url = new URL(window.location.href);
   //     url.searchParams.delete("authorized");
   //     window.history.replaceState({}, document.title, url.toString());
   //   }
   // }, [processedImage]);
+
+  // Create a handler function for the PhotoSheetGenerator
+  const handleSheetImageGenerated = (generatedImage: string) => {
+    setSheetImage(generatedImage);
+  };
 
   const renderStepContent = (): JSX.Element | null => {
     switch (step) {
@@ -599,7 +620,7 @@ const ProcessPage: React.FC = () => {
               <div className="flex-shrink-0 relative">
                 {processedImage && (
                   <div className="bg-gray-100 rounded-lg overflow-hidden w-[300px] border-2 border-gray-300 shadow-sm">
-                    <div className="absolute top-2 right-2 bg-black text-white text-xs py-1 px-2 rounded z-10">
+                    <div className="absolute top-2 right-2 bg-green-600 text-white text-xs py-1 px-2 rounded z-10">
                       Before
                     </div>
                     <img
@@ -612,8 +633,8 @@ const ProcessPage: React.FC = () => {
               </div>
               <div className="flex-shrink-0 relative">
                 {processedImage && (
-                  <div className="bg-gray-100 rounded-lg overflow-hidden w-[300px] border-2 border-gray-300 shadow-sm">
-                    <div className="absolute top-2 right-2 bg-black text-white text-xs py-1 px-2 rounded z-10">
+                  <div className="bg-gray-100 rounded-lg overflow-hidden w-[300px] border-2 border-gray-300 shadow-sm relative">
+                    <div className="absolute top-2 right-2 bg-red-700 text-white text-xs py-1 px-2 rounded z-10">
                       After
                     </div>
                     <img
@@ -621,14 +642,12 @@ const ProcessPage: React.FC = () => {
                       alt="Processed"
                       className="w-full h-auto"
                     />
-                  </div>
-                )}
-                {isProcessing && (
-                  <div className="mt-4 text-center">
-                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-indigo-600 border-r-transparent"></div>
-                    <p className="mt-2 text-sm text-gray-600">
-                      Processing image...
-                    </p>
+                    {isProcessing && (
+                      <div className="absolute inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center">
+                        <div className="inline-block h-10 w-10 animate-spin rounded-full border-4 border-solid border-white border-r-transparent"></div>
+                        <p className="mt-2 text-sm text-white">Processing...</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -672,7 +691,7 @@ const ProcessPage: React.FC = () => {
               <div className="flex-shrink-0 relative">
                 {processedImage && stepImages[3] && (
                   <div className="bg-gray-100 rounded-lg overflow-hidden w-[300px] border-2 border-gray-300 shadow-sm">
-                    <div className="absolute top-2 right-2 bg-black text-white text-xs py-1 px-2 rounded z-10">
+                    <div className="absolute top-2 right-2 bg-green-600 text-white text-xs py-1 px-2 rounded z-10">
                       Before
                     </div>
                     <img
@@ -685,8 +704,8 @@ const ProcessPage: React.FC = () => {
               </div>
               <div className="flex-shrink-0 relative">
                 {processedImage && (
-                  <div className="bg-gray-100 rounded-lg overflow-hidden w-[300px] border-2 border-gray-300 shadow-sm">
-                    <div className="absolute top-2 right-2 bg-black text-white text-xs py-1 px-2 rounded z-10">
+                  <div className="bg-gray-100 rounded-lg overflow-hidden w-[300px] border-2 border-gray-300 shadow-sm relative">
+                    <div className="absolute top-2 right-2 bg-red-700 text-white text-xs py-1 px-2 rounded z-10">
                       After
                     </div>
                     <img
@@ -694,14 +713,12 @@ const ProcessPage: React.FC = () => {
                       alt="Enhanced"
                       className="w-full h-auto"
                     />
-                  </div>
-                )}
-                {isProcessing && (
-                  <div className="mt-4 text-center">
-                    <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-indigo-600 border-r-transparent"></div>
-                    <p className="mt-2 text-sm text-gray-600">
-                      Processing image...
-                    </p>
+                    {isProcessing && (
+                      <div className="absolute inset-0 bg-black bg-opacity-50 flex flex-col items-center justify-center">
+                        <div className="inline-block h-10 w-10 animate-spin rounded-full border-4 border-solid border-white border-r-transparent"></div>
+                        <p className="mt-2 text-sm text-white">Processing...</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -722,12 +739,12 @@ const ProcessPage: React.FC = () => {
             <h2 className="text-2xl font-bold mb-6">
               Compliance Check & Export
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="md:col-span-2">
-                {processedImage && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="md:col-span-1">
+                {(sheetImage || processedImage) && (
                   <div className="bg-gray-100 rounded-lg overflow-hidden border-2 border-gray-300 shadow-sm">
                     <img
-                      src={processedImage}
+                      src={sheetImage || processedImage || ""}
                       alt="Processed"
                       className="w-full h-auto"
                     />
@@ -737,7 +754,11 @@ const ProcessPage: React.FC = () => {
               <div className="space-y-6">
                 <ComplianceChecker result={complianceResult} />
 
-                <PhotoSheetGenerator processedImage={processedImage} />
+                <PhotoSheetGenerator
+                  ref={photoSheetGeneratorRef}
+                  processedImage={processedImage}
+                  onImageGenerated={handleSheetImageGenerated}
+                />
               </div>
             </div>
           </div>
@@ -843,7 +864,6 @@ const ProcessPage: React.FC = () => {
         pauseOnHover
         theme="light"
       />
-
     </div>
   );
 };
