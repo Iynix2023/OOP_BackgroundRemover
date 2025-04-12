@@ -29,14 +29,8 @@ public class ImageEnhancementController {
         }
     }
 
-
-    private final ImageEnhancementService imageEnhancementService;
-
     @Autowired
-    public ImageEnhancementController(ImageEnhancementService imageEnhancementService) {
-        this.imageEnhancementService = imageEnhancementService;
-    }
-    
+    private ImageEnhancementService imageEnhancementService;
 
     @PostMapping("/enhance")
     public ResponseEntity<byte[]> enhanceImage(
@@ -73,7 +67,6 @@ public class ImageEnhancementController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
-    
 
     @PostMapping("/analyze")
     public ResponseEntity<Map<String, Integer>> analyzeImage(@RequestParam("image") String base64Image) {

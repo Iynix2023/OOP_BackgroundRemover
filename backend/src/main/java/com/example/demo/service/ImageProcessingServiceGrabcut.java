@@ -19,8 +19,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
 @Service
-public class ImageProcessingService {
-    private static final Logger logger = LoggerFactory.getLogger(ImageProcessingService.class);
+public class ImageProcessingServiceGrabcut {
+    private static final Logger logger = LoggerFactory.getLogger(ImageProcessingServiceGrabcut.class);
 
     @Autowired
     private ResourceLoader resourceLoader;

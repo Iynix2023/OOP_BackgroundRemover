@@ -11,12 +11,8 @@ import org.springframework.web.bind.annotation.*;
 @CrossOrigin(origins = "*")
 public class SheetGeneratorController {
 
-    private final SheetGeneratorService sheetGeneratorService;
-    
     @Autowired
-    public SheetGeneratorController(SheetGeneratorService sheetGeneratorService) {
-        this.sheetGeneratorService = sheetGeneratorService;
-    }
+    private SheetGeneratorService sheetGeneratorService;
 
     @PostMapping("/generate-sheet")
     public ResponseEntity<?> generatePhotoSheet(
