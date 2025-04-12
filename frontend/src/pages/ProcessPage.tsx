@@ -73,6 +73,9 @@ const ProcessPage: React.FC = () => {
     null
   );
 
+  // =======================================================================
+  // Step 1: Uploading the image or getting the image through camera capture
+  // =======================================================================
   const handleImageUpload = (files: File[]) => {
     if (files.length > 0) {
       const file = files[0];
@@ -120,46 +123,9 @@ const ProcessPage: React.FC = () => {
     setStep(2);
   };
 
-  const handleCropComplete = useCallback((croppedArea: CropArea) => {
-    setCropArea(croppedArea);
-    // Also store this crop area for the current step
-    setStepCropAreas((prev) => ({
-      ...prev,
-      3: croppedArea, // Changed from 2 to 3
-    }));
-  }, []);
-
-  const applyCrop = async () => {
-    // Get the background-removed image from step 2
-    const sourceImage = stepImages[2];
-    if (!sourceImage || !cropArea) return;
-
-    setIsProcessing(true);
-    try {
-      const croppedImage = await imageProcessingService.cropImage(
-        sourceImage, // Use background-removed image instead of uploadedImage
-        cropArea
-      );
-      setProcessedImage(croppedImage);
-
-      // Store the cropped image for step 3
-      setStepImages((prev) => ({
-        ...prev,
-        3: croppedImage,
-      }));
-
-      // Add to history
-      const newHistory = history.slice(0, historyIndex + 1);
-      newHistory.push(croppedImage);
-      setHistory(newHistory);
-      setHistoryIndex(newHistory.length - 1);
-    } catch (error) {
-      console.error("Error cropping image:", error);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
+  // =======================================================================
+  // Step 2: Removing the background on the image and centering the person
+  // =======================================================================
   const handleBackgroundChange = async (options: BackgroundOptions) => {
     setBackground(options);
 
@@ -192,31 +158,56 @@ const ProcessPage: React.FC = () => {
     }
   };
 
+  // =======================================================================
+  // Step 3: Cropping the image based on the image in step 2
+  // =======================================================================
+  const handleCropComplete = useCallback((croppedArea: CropArea) => {
+    setCropArea(croppedArea);
+    // Also store this crop area for the current step
+    setStepCropAreas((prev) => ({
+      ...prev,
+      3: croppedArea, // Changed from 2 to 3
+    }));
+  }, []);
+
+  const applyCrop = async () => {
+    // Get the background-removed image from PREVIOUS step
+    const sourceImage = stepImages[2];
+    if (!sourceImage || !cropArea) return;
+
+    setIsProcessing(true);
+    try {
+      const croppedImage = await imageProcessingService.cropImage(
+        sourceImage, // Use background-removed image instead of uploadedImage
+        cropArea
+      );
+      setProcessedImage(croppedImage);
+
+      // Store the cropped image for step 3
+      setStepImages((prev) => ({
+        ...prev,
+        3: croppedImage,
+      }));
+
+      // Add to history
+      const newHistory = history.slice(0, historyIndex + 1);
+      newHistory.push(croppedImage);
+      setHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+    } catch (error) {
+      console.error("Error cropping image:", error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Clothes Change not implemented
   // const handleClothesChange = async (options: ClothesOptions) => {
-  //   setClothes(options);
-
-  //   if (!processedImage) return;
-
-  //   setIsProcessing(true);
-  //   try {
-  //     const newImage = await imageProcessingService.replaceClothes(
-  //       processedImage,
-  //       options
-  //     );
-  //     setProcessedImage(newImage);
-
-  //     // Add to history
-  //     const newHistory = history.slice(0, historyIndex + 1);
-  //     newHistory.push(newImage);
-  //     setHistory(newHistory);
-  //     setHistoryIndex(newHistory.length - 1);
-  //   } catch (error) {
-  //     console.error("Error changing clothes:", error);
-  //   } finally {
-  //     setIsProcessing(false);
-  //   }
   // };
 
+  // =======================================================================
+  // Step 4: Add enhancements to the cropped image
+  // =======================================================================
   // Modify the step change logic to capture the image before enhancement
   useEffect(() => {
     if (step === 4 && processedImage && !preEnhancementImage) {
@@ -225,7 +216,7 @@ const ProcessPage: React.FC = () => {
     }
   }, [step, processedImage, preEnhancementImage]);
 
-  // Modify your handleEnhanceChange function
+  // handleEnhanceChange function
   const handleEnhanceChange = async (options: EnhanceOptions) => {
     // Update UI state immediately
     setEnhanceOptions(options);
@@ -329,20 +320,6 @@ const ProcessPage: React.FC = () => {
     }
   };
 
-  const handleUndo = () => {
-    if (historyIndex > 0) {
-      setHistoryIndex(historyIndex - 1);
-      setProcessedImage(history[historyIndex - 1]);
-    }
-  };
-
-  const handleRedo = () => {
-    if (historyIndex < history.length - 1) {
-      setHistoryIndex(historyIndex + 1);
-      setProcessedImage(history[historyIndex + 1]);
-    }
-  };
-
   const downloadImage = () => {
     if (!processedImage) return;
 
@@ -355,7 +332,14 @@ const ProcessPage: React.FC = () => {
   };
 
   const nextStep = async () => {
-    if (step === 3 && cropArea) {
+    // When moving from step 2 to step 3, check if we have a background-removed image
+    if (step === 2 && !stepImages[2]) {
+      // If background removal wasn't done, use the original image as a fallback
+      setStepImages(prev => ({
+        ...prev,
+        2: stepImages[1] // Use the original uploaded image
+      }));
+    } else if (step === 3 && cropArea) {
       // Then crop after background is removed
       await applyCrop();
     } else if (step === 5) {

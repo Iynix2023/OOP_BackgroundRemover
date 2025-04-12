@@ -1,6 +1,6 @@
 import {
   BackgroundOptions,
-  ClothesOptions,
+  // ClothesOptions,
   EnhanceOptions,
   CropArea,
   ComplianceResult,
@@ -329,7 +329,7 @@ class ImageProcessingService {
   async startBatchProcessing(
     files: File[],
     background: BackgroundOptions,
-    clothes: ClothesOptions,
+    // clothes: ClothesOptions,
     enhanceOptions: EnhanceOptions,
     exportFormat: string,
     exportSize: string
@@ -347,10 +347,10 @@ class ImageProcessingService {
       formData.append("backgroundValue", background.value);
 
       // Add clothes options if provided
-      if (clothes && clothes.type) {
-        formData.append("clothesType", clothes.type);
-        formData.append("clothesColor", clothes.color);
-      }
+      // if (clothes && clothes.type) {
+      //   formData.append("clothesType", clothes.type);
+      //   formData.append("clothesColor", clothes.color);
+      // }
 
       // Add enhancement options
       formData.append("brightness", enhanceOptions.brightness.toString());
