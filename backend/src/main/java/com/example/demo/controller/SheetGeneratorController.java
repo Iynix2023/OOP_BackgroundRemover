@@ -1,6 +1,6 @@
 package com.example.demo.controller;
 
-import com.example.demo.ExportOptions;
+import com.example.demo.model.ExportOptions;
 import com.example.demo.service.SheetGeneratorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -8,15 +8,11 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/photo")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = "*")
 public class SheetGeneratorController {
 
-    private final SheetGeneratorService sheetGeneratorService;
-    
     @Autowired
-    public SheetGeneratorController(SheetGeneratorService sheetGeneratorService) {
-        this.sheetGeneratorService = sheetGeneratorService;
-    }
+    private SheetGeneratorService sheetGeneratorService;
 
     @PostMapping("/generate-sheet")
     public ResponseEntity<?> generatePhotoSheet(
@@ -34,7 +30,6 @@ public class SheetGeneratorController {
     }
     
     // Request and Response classes
-    
     public static class PhotoSheetRequest {
         private String imageData;
         private ExportOptions exportOptions;

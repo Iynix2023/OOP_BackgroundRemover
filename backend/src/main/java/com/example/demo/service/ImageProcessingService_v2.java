@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 // BG Image Generation
 import java.awt.Color;
 import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 // import java.awt.image.BufferedImage;
 
 @Service
@@ -38,15 +39,7 @@ public class ImageProcessingService_v2 {
     private static final Logger logger = LoggerFactory.getLogger(ImageProcessingService_v2.class);
 
     /**
-     * Removes the background from the input image by performing semantic
-     * segmentation using DeepLabV3. It extracts the foreground for the target
-     * category (15)
-     * resizes it to the original image dimensions, and composites it onto a light
-     * blue bg
-     *
-     * @param file the uploaded image file
-     * @return a byte array containing the composited JPEG image
-     * @throws IOException if processing fails
+     * Backup function, not the mainone
      */
     public byte[] removeBackground(MultipartFile file) throws IOException {
         return removeBackground(file, "color", "#AADBE6"); // Light blue default
@@ -54,8 +47,7 @@ public class ImageProcessingService_v2 {
 
     /**
      * Removes the background from the input image, centers the person, and applies
-     * the specified
-     * background color or type
+     * the specified background color or type
      *
      * @param file            the uploaded image file
      * @param backgroundType  the type of background to apply (color, transparent,
@@ -290,23 +282,66 @@ public class ImageProcessingService_v2 {
     }
 
     /**
-     * Centers a person in an image by detecting the bounding box of the person
-     * and creating a new image with the person centered on a light blue background.
+     * Overlays a person onto a custom background image.
+     * The person is centered on the background.
      *
-     * @param file the uploaded image file
-     * @return a byte array containing the centered image in PNG format
+     * @param personImage     the image containing the person with background to be
+     *                        removed
+     * @param backgroundImage the custom background image
+     * @return a byte array containing the processed image in PNG format
      * @throws IOException if processing fails
      */
-    public byte[] centerPersonInImage(MultipartFile file) throws IOException {
+    public byte[] overlayPersonOnBackground(
+            MultipartFile personImage,
+            MultipartFile backgroundImage) throws IOException {
+
         try {
-            // Convert the uploaded file to a DJL Image
-            Image img = ImageFactory.getInstance().fromInputStream(file.getInputStream());
+            // Convert the uploaded files to DJL Images
+            Image personImg = ImageFactory.getInstance().fromInputStream(personImage.getInputStream());
+            Image bgImg = ImageFactory.getInstance().fromInputStream(backgroundImage.getInputStream());
+
+            // Get dimensions
+            BufferedImage originalPersonBuffered = (BufferedImage) personImg.getWrappedImage();
+            int personImgWidth = originalPersonBuffered.getWidth();
+            int personImgHeight = originalPersonBuffered.getHeight();
+
+            BufferedImage originalBgBuffered = (BufferedImage) bgImg.getWrappedImage();
+            int bgWidth = originalBgBuffered.getWidth();
+            int bgHeight = originalBgBuffered.getHeight();
+
+            // Check if background is smaller than person image and scale if needed
+            if (bgWidth < personImgWidth || bgHeight < personImgHeight) {
+                logger.info("Background image is smaller than person image. Scaling up background.");
+
+                // Calculate scale factors
+                double scaleX = (double) personImgWidth / bgWidth;
+                double scaleY = (double) personImgHeight / bgHeight;
+                double scale = Math.max(scaleX, scaleY); // Use the larger scale to ensure both dimensions are covered
+
+                // Calculate new dimensions (round up to ensure we're bigger than person image)
+                int newWidth = (int) Math.ceil(bgWidth * scale);
+                int newHeight = (int) Math.ceil(bgHeight * scale);
+
+                // Create a new scaled background image
+                BufferedImage scaledBgBuffered = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_ARGB);
+                Graphics2D g2d = scaledBgBuffered.createGraphics();
+                g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                g2d.drawImage(originalBgBuffered, 0, 0, newWidth, newHeight, null);
+                g2d.dispose();
+
+                // Update background image and dimensions
+                originalBgBuffered = scaledBgBuffered;
+                bgWidth = newWidth;
+                bgHeight = newHeight;
+
+                // Update the DJL image object
+                bgImg = ImageFactory.getInstance().fromImage(originalBgBuffered);
+            }
 
             // URL of the pre-trained DeepLabV3 model packaged as a zip file
             String url = "djl://ai.djl.pytorch/deeplabv3/0.0.1/deeplabv3";
 
-            // Build the criteria to load the model with the semantic segmentation
-            // translator
+            // Build the criteria to load the model
             Criteria<Image, CategoryMask> criteria = Criteria.builder()
                     .setTypes(Image.class, CategoryMask.class)
                     .optModelUrls(url)
@@ -318,30 +353,31 @@ public class ImageProcessingService_v2 {
             try (ZooModel<Image, CategoryMask> model = criteria.loadModel();
                     Predictor<Image, CategoryMask> predictor = model.newPredictor()) {
 
-                // Predict the segmentation mask
-                CategoryMask mask = predictor.predict(img);
+                // Predict the segmentation mask for the person image
+                CategoryMask mask = predictor.predict(personImg);
 
-                // Get the original image as BufferedImage
-                BufferedImage originalBuffered = (BufferedImage) img.getWrappedImage();
-                int imgWidth = originalBuffered.getWidth();
-                int imgHeight = originalBuffered.getHeight();
+                // // Get the original person image as BufferedImage
+                // BufferedImage originalPersonBuffered = (BufferedImage)
+                // personImg.getWrappedImage();
+                // int personImgWidth = originalPersonBuffered.getWidth();
+                // int personImgHeight = originalPersonBuffered.getHeight();
 
-                // First extract the person from the original image using the mask
+                // Extract person from the original image using the mask
                 BufferedImage personOnly = new BufferedImage(
-                        imgWidth,
-                        imgHeight,
+                        personImgWidth,
+                        personImgHeight,
                         BufferedImage.TYPE_INT_ARGB);
 
                 // Create the person mask image and convert to BufferedImage
-                Image personMaskImage = mask.getMaskImage(img, 15); // 15 is the category ID for person
+                Image personMaskImage = mask.getMaskImage(personImg, 15); // 15 is the category ID for person
 
                 // Ensure the mask is properly sized to match the original image
-                personMaskImage = personMaskImage.resize(imgWidth, imgHeight, true);
+                personMaskImage = personMaskImage.resize(personImgWidth, personImgHeight, true);
                 BufferedImage maskBuffered = (BufferedImage) personMaskImage.getWrappedImage();
 
                 // Extract the person from original image using mask
-                for (int y = 0; y < imgHeight; y++) {
-                    for (int x = 0; x < imgWidth; x++) {
+                for (int y = 0; y < personImgHeight; y++) {
+                    for (int x = 0; x < personImgWidth; x++) {
                         // Safety check for array bounds
                         if (x >= maskBuffered.getWidth() || y >= maskBuffered.getHeight()) {
                             continue;
@@ -351,21 +387,21 @@ public class ImageProcessingService_v2 {
                         // Check if this pixel is part of the person in the mask (not transparent)
                         if ((maskPixel >> 24) != 0) {
                             // Copy pixel from original image
-                            personOnly.setRGB(x, y, originalBuffered.getRGB(x, y));
+                            personOnly.setRGB(x, y, originalPersonBuffered.getRGB(x, y));
                         }
                     }
                 }
 
                 // Calculate bounding box of the person in the extracted image
-                int left = imgWidth;
+                int left = personImgWidth;
                 int right = 0;
-                int top = imgHeight;
+                int top = personImgHeight;
                 int bottom = 0;
                 boolean personFound = false;
 
                 // Find the bounding box coordinates
-                for (int y = 0; y < imgHeight; y++) {
-                    for (int x = 0; x < imgWidth; x++) {
+                for (int y = 0; y < personImgHeight; y++) {
+                    for (int x = 0; x < personImgWidth; x++) {
                         int pixel = personOnly.getRGB(x, y);
                         // Check if this pixel is not transparent (part of the person)
                         if ((pixel >> 24) != 0) {
@@ -378,37 +414,39 @@ public class ImageProcessingService_v2 {
                     }
                 }
 
-                // If no person is detected, return the original image with blue background
-                if (!personFound || left >= right || top >= bottom) {
-                    logger.warn("No person detected in the image for centering");
-                    return removeBackground(file);
-                }
+                // Get background image dimensions
+                // BufferedImage originalBgBuffered = (BufferedImage) bgImg.getWrappedImage();
+                // int bgWidth = originalBgBuffered.getWidth();
+                // int bgHeight = originalBgBuffered.getHeight();
 
-                // Ensure bounding box is within image bounds
-                left = Math.max(0, left);
-                top = Math.max(0, top);
-                right = Math.min(imgWidth - 1, right);
-                bottom = Math.min(imgHeight - 1, bottom);
+                // Create a new image with the background dimensions
+                BufferedImage resultImage = new BufferedImage(
+                        bgWidth,
+                        bgHeight,
+                        BufferedImage.TYPE_INT_ARGB);
+
+                // Draw the background image (now we're using the potentially scaled version)
+                Graphics2D g2d = resultImage.createGraphics();
+                g2d.drawImage(originalBgBuffered, 0, 0, null);
+                g2d.dispose();
+
+                // If no person is detected, return the background image as is
+                if (!personFound || left >= right || top >= bottom) {
+                    logger.info("No person detected, returning background image");
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    ImageIO.write(resultImage, "png", baos);
+                    return baos.toByteArray();
+                }
 
                 // Calculate the width and height of the person
                 int personWidth = right - left + 1;
                 int personHeight = bottom - top + 1;
 
                 // Calculate centering offsets
-                int xOffset = (imgWidth - personWidth) / 2 - left;
-                int yOffset = (imgHeight - personHeight) / 2 - top;
+                int xOffset = (bgWidth - personWidth) / 2 - left;
+                int yOffset = (bgHeight - personHeight) / 2 - top;
 
-                // Create a new light blue background image
-                BufferedImage centeredImage = new BufferedImage(
-                        imgWidth,
-                        imgHeight,
-                        BufferedImage.TYPE_INT_ARGB);
-                Graphics2D g2d = centeredImage.createGraphics();
-                g2d.setColor(new Color(173, 216, 230)); // Light blue
-                g2d.fillRect(0, 0, imgWidth, imgHeight);
-                g2d.dispose();
-
-                // Copy the person pixels to the centered position
+                // Copy the person pixels to the centered position on the background
                 for (int y = top; y <= bottom; y++) {
                     for (int x = left; x <= right; x++) {
                         // Get the pixel from the extracted person image
@@ -424,27 +462,23 @@ public class ImageProcessingService_v2 {
                         int destY = y + yOffset;
 
                         // Ensure we're within bounds of the output image
-                        if (destX >= 0 && destX < imgWidth && destY >= 0 && destY < imgHeight) {
+                        if (destX >= 0 && destX < bgWidth && destY >= 0 && destY < bgHeight) {
                             // Copy the pixel to the centered position
-                            centeredImage.setRGB(destX, destY, pixelColor);
+                            resultImage.setRGB(destX, destY, pixelColor);
                         }
                     }
                 }
 
-                // Convert the final centered image to a byte array
+                // Convert the final image to a byte array
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                ImageIO.write(centeredImage, "png", baos);
+                ImageIO.write(resultImage, "png", baos);
                 return baos.toByteArray();
             }
         } catch (ModelException | TranslateException e) {
-            throw new IOException("Error centering person in image", e);
-        } catch (ArrayIndexOutOfBoundsException e) {
-            logger.error("Array index out of bounds when centering image: " + e.getMessage());
-            // Fallback to regular background removal
-            return removeBackground(file);
+            throw new IOException("Error processing image", e);
         } catch (Exception e) {
-            logger.error("Unexpected error when centering image: " + e.getMessage(), e);
-            throw new IOException("Error centering person in image", e);
+            logger.error("Unexpected error in overlayPersonOnBackground: " + e.getMessage(), e);
+            throw new IOException("Error processing image", e);
         }
     }
 }

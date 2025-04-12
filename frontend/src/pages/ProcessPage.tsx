@@ -1,6 +1,14 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, ArrowRight, Save, Undo, Redo, Check, Camera as CameraIcon} from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Save,
+  Undo,
+  Redo,
+  Check,
+  Camera as CameraIcon,
+} from "lucide-react";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import ImageUploader from "../components/ImageUploader";
@@ -102,6 +110,9 @@ const ProcessPage: React.FC = () => {
     null
   );
 
+  // =======================================================================
+  // Step 1: Uploading the image or getting the image through camera capture
+  // =======================================================================
   const handleImageUpload = (files: File[]) => {
     if (files.length > 0) {
       const file = files[0];
@@ -149,46 +160,9 @@ const ProcessPage: React.FC = () => {
     setStep(2);
   };
 
-  const handleCropComplete = useCallback((croppedArea: CropArea) => {
-    setCropArea(croppedArea);
-    // Also store this crop area for the current step
-    setStepCropAreas((prev) => ({
-      ...prev,
-      3: croppedArea, // Changed from 2 to 3
-    }));
-  }, []);
-
-  const applyCrop = async () => {
-    // Get the background-removed image from step 2
-    const sourceImage = stepImages[2];
-    if (!sourceImage || !cropArea) return;
-
-    setIsProcessing(true);
-    try {
-      const croppedImage = await imageProcessingService.cropImage(
-        sourceImage, // Use background-removed image instead of uploadedImage
-        cropArea
-      );
-      setProcessedImage(croppedImage);
-
-      // Store the cropped image for step 3
-      setStepImages((prev) => ({
-        ...prev,
-        3: croppedImage,
-      }));
-
-      // Add to history
-      const newHistory = history.slice(0, historyIndex + 1);
-      newHistory.push(croppedImage);
-      setHistory(newHistory);
-      setHistoryIndex(newHistory.length - 1);
-    } catch (error) {
-      console.error("Error cropping image:", error);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
+  // =======================================================================
+  // Step 2: Removing the background on the image and centering the person
+  // =======================================================================
   const handleBackgroundChange = async (options: BackgroundOptions) => {
     setBackground(options);
 
@@ -221,33 +195,56 @@ const ProcessPage: React.FC = () => {
     }
   };
 
+  // =======================================================================
+  // Step 3: Cropping the image based on the image in step 2
+  // =======================================================================
+  const handleCropComplete = useCallback((croppedArea: CropArea) => {
+    setCropArea(croppedArea);
+    // Also store this crop area for the current step
+    setStepCropAreas((prev) => ({
+      ...prev,
+      3: croppedArea, // Changed from 2 to 3
+    }));
+  }, []);
+
+  const applyCrop = async () => {
+    // Get the background-removed image from PREVIOUS step
+    const sourceImage = stepImages[2];
+    if (!sourceImage || !cropArea) return;
+
+    setIsProcessing(true);
+    try {
+      const croppedImage = await imageProcessingService.cropImage(
+        sourceImage, // Use background-removed image instead of uploadedImage
+        cropArea
+      );
+      setProcessedImage(croppedImage);
+
+      // Store the cropped image for step 3
+      setStepImages((prev) => ({
+        ...prev,
+        3: croppedImage,
+      }));
+
+      // Add to history
+      const newHistory = history.slice(0, historyIndex + 1);
+      newHistory.push(croppedImage);
+      setHistory(newHistory);
+      setHistoryIndex(newHistory.length - 1);
+    } catch (error) {
+      console.error("Error cropping image:", error);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Clothes Change not implemented
   // const handleClothesChange = async (options: ClothesOptions) => {
-  //   setClothes(options);
-
-  //   if (!processedImage) return;
-
-  //   setIsProcessing(true);
-  //   try {
-  //     const newImage = await imageProcessingService.replaceClothes(
-  //       processedImage,
-  //       options
-  //     );
-  //     setProcessedImage(newImage);
-
-  //     // Add to history
-  //     const newHistory = history.slice(0, historyIndex + 1);
-  //     newHistory.push(newImage);
-  //     setHistory(newHistory);
-  //     setHistoryIndex(newHistory.length - 1);
-  //   } catch (error) {
-  //     console.error("Error changing clothes:", error);
-  //   } finally {
-  //     setIsProcessing(false);
-  //   }
   // };
 
-
-
+  // =======================================================================
+  // Step 4: Add enhancements to the cropped image
+  // =======================================================================
   // Modify the step change logic to capture the image before enhancement
   useEffect(() => {
     if (step === 4 && processedImage && !preEnhancementImage) {
@@ -256,7 +253,7 @@ const ProcessPage: React.FC = () => {
     }
   }, [step, processedImage, preEnhancementImage]);
 
-  // Modify your handleEnhanceChange function
+  // handleEnhanceChange function
   const handleEnhanceChange = async (options: EnhanceOptions) => {
     // Update UI state immediately
     setEnhanceOptions(options);
@@ -360,33 +357,26 @@ const ProcessPage: React.FC = () => {
     }
   };
 
-  const handleUndo = () => {
-    if (historyIndex > 0) {
-      setHistoryIndex(historyIndex - 1);
-      setProcessedImage(history[historyIndex - 1]);
-    }
-  };
+  // const downloadImage = () => {
+  //   if (!processedImage) return;
 
-  const handleRedo = () => {
-    if (historyIndex < history.length - 1) {
-      setHistoryIndex(historyIndex + 1);
-      setProcessedImage(history[historyIndex + 1]);
-    }
-  };
-
-  const downloadImage = () => {
-    if (!processedImage) return;
-
-    const link = document.createElement("a");
-    link.href = processedImage;
-    link.download = "id-photo.png";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  //   const link = document.createElement("a");
+  //   link.href = processedImage;
+  //   link.download = "id-photo.png";
+  //   document.body.appendChild(link);
+  //   link.click();
+  //   document.body.removeChild(link);
+  // };
 
   const nextStep = async () => {
-    if (step === 3 && cropArea) {
+    // When moving from step 2 to step 3, check if we have a background-removed image
+    if (step === 2 && !stepImages[2]) {
+      // If background removal wasn't done, use the original image as a fallback
+      setStepImages((prev) => ({
+        ...prev,
+        2: stepImages[1], // Use the original uploaded image
+      }));
+    } else if (step === 3 && cropArea) {
       // Then crop after background is removed
       await applyCrop();
     } else if (step === 5) {
@@ -743,107 +733,6 @@ const ProcessPage: React.FC = () => {
                     />
                   </div>
                 )}
-
-                <div className="mt-6 flex space-x-4">
-                  <button
-                    className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-                    onClick={downloadImage}
-                  >
-                    <Save size={18} className="mr-2" />
-                    Download
-                  </button>
-                  <button
-                    className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                    onClick={async () => {
-                      try {
-                        if (!processedImage) return;
-
-                        // Store image in localStorage before redirecting
-                        localStorage.setItem("imageToUpload", processedImage);
-
-                        window.location.href = "http://localhost:8080/authorize";
-                      } catch (err: any) {
-                        alert("Upload failed: " + err.message);
-                      }
-                    }}
-                    
-                        // OPTIONAL: Check if already authorized
-                        // const isAuthorized = await checkAuthorization();
-                        // if (!isAuthorized) {
-                        //   window.location.href = "http://localhost:8080/authorize";
-                        //   return;
-                        // }
-                    
-                        // OR: Always go to OAuth flow first (simpler)
-                    //     window.location.href = "http://localhost:8080/authorize";
-                    //   } catch (err: any) {
-                    //     alert("Upload failed: " + err.message);
-                    //   }
-                    // }}
-
-
-                    // onClick={async () => {
-                    //   try {
-                    //     if (!processedImage) return;
-                    //     const message = await uploadToCloud(processedImage);
-                    //     alert("Upload successful: " + message);
-                    //   } catch (err: any) {
-                    //     alert("Upload failed: " + err.message);
-                    //   }
-                    // }}
-                  >
-                    <Save size={18} className="mr-2" />
-                    Save to Cloud
-                  </button>
-
-                  {/* <button
-                    className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                    onClick={async () => {
-                      if (processedImage) {
-                        const result = await cloudUploadService.uploadToCloud(processedImage);
-                        alert(result); // optionally use a toast
-                      }
-                    }}
-                  >
-                    <Save size={18} className="mr-2" />
-                    Save to Cloud
-                  </button> */}
-                </div>
-
-                
-                {/* <div className="mt-6 flex space-x-4">
-                <button
-                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-                  onClick={async () => {
-                    if (processedImage) {
-                      const result = await cloudUploadService.uploadToCloud(processedImage);
-                      alert(result);  // optionally replace with toast/notification
-                    }
-                  }}
-                >
-                  <Save size={18} className="mr-2" />
-                  Save to Cloud
-                </button> */}
-
-                  {/* <button
-                    className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
-                    onClick={downloadImage}
-                  >
-                    <Save size={18} className="mr-2" />
-                    Download
-                  </button>
-                  <button
-                    className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-                    onClick={() => {
-                      if (processedImage) {
-                        imageProcessingService.saveToCloud(processedImage);
-                      }
-                    }}
-                  >
-                    <Save size={18} className="mr-2" />
-                    Save to Cloud
-                  </button> 
-                </div>*/}
               </div>
               <div className="space-y-6">
                 <ComplianceChecker result={complianceResult} />
@@ -909,25 +798,6 @@ const ProcessPage: React.FC = () => {
                 Undo
               </button>
 
-              {/* <div className="flex space-x-4">
-                <button
-                  className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-                  onClick={handleUndo}
-                  disabled={historyIndex <= 0 || isProcessing}
-                >
-                  <Undo size={18} className="mr-2" />
-                  Undo
-                </button>
-                <button
-                  className="flex items-center px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-                  onClick={handleRedo}
-                  disabled={historyIndex >= history.length - 1 || isProcessing}
-                >
-                  <Redo size={18} className="mr-2" />
-                  Redo
-                </button>
-              </div> */}
-
               {step < 5 ? (
                 <button
                   onClick={nextStep}
@@ -936,20 +806,20 @@ const ProcessPage: React.FC = () => {
                 >
                   Next
                   <ArrowRight size={18} className="ml-2" />
-        </button>
-      ) : (
-        <button
-          onClick={() => navigate('/')}
-          className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
-          disabled={isProcessing}
-        >
-          Finish
-          <Check size={18} className="ml-2" />
-        </button>
-      )}
-    </div>
-  )}
-</div>
+                </button>
+              ) : (
+                <button
+                  onClick={() => navigate("/")}
+                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                  disabled={isProcessing}
+                >
+                  Finish
+                  <Check size={18} className="ml-2" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </main>
 
       {/* Inline Camera Modal */}

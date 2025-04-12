@@ -1,6 +1,6 @@
 import {
   BackgroundOptions,
-  ClothesOptions,
+  // ClothesOptions,
   EnhanceOptions,
   CropArea,
   ComplianceResult,
@@ -14,6 +14,12 @@ class ImageProcessingService {
     options: BackgroundOptions
   ): Promise<string> {
     try {
+      // If using a custom background image, call the custom endpoint
+      if (options.type === "image" && options.value) {
+        return this.applyCustomBackgroundImage(imageData, options.value);
+      }
+
+      // Otherwise use the normal background removal endpoint
       // Convert the base64/blob URL image to a file object
       const imageFile = await this.dataURLtoFile(imageData, "image.png");
 
@@ -43,6 +49,50 @@ class ImageProcessingService {
 
       // Fallback to client-side processing if server fails
       return this.clientSideBackgroundRemoval(imageData, options);
+    }
+  }
+
+  // New method to handle custom background images
+  private async applyCustomBackgroundImage(
+    personImage: string,
+    backgroundImage: string
+  ): Promise<string> {
+    try {
+      // Ensure we have base64 data
+      const personBase64 = personImage.startsWith("data:")
+        ? personImage
+        : await this.blobUrlToBase64(personImage);
+
+      const backgroundBase64 = backgroundImage.startsWith("data:")
+        ? backgroundImage
+        : await this.blobUrlToBase64(backgroundImage);
+
+      // Create URL-encoded form data
+      const formData = new URLSearchParams();
+      formData.append("personImage", personBase64);
+      formData.append("backgroundImage", backgroundBase64);
+
+      // Send the request to the backend
+      const response = await fetch(`${API_URL}/process-custom-image`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: formData.toString(),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `Custom background application failed: ${response.status}`
+        );
+      }
+
+      // Convert the response to a blob and create an object URL
+      const blob = await response.blob();
+      return URL.createObjectURL(blob);
+    } catch (error) {
+      console.error("Custom background application error:", error);
+      throw error;
     }
   }
 
@@ -329,7 +379,7 @@ class ImageProcessingService {
   async startBatchProcessing(
     files: File[],
     background: BackgroundOptions,
-    clothes: ClothesOptions,
+    // clothes: ClothesOptions,
     enhanceOptions: EnhanceOptions,
     exportFormat: string,
     exportSize: string
@@ -347,10 +397,10 @@ class ImageProcessingService {
       formData.append("backgroundValue", background.value);
 
       // Add clothes options if provided
-      if (clothes && clothes.type) {
-        formData.append("clothesType", clothes.type);
-        formData.append("clothesColor", clothes.color);
-      }
+      // if (clothes && clothes.type) {
+      //   formData.append("clothesType", clothes.type);
+      //   formData.append("clothesColor", clothes.color);
+      // }
 
       // Add enhancement options
       formData.append("brightness", enhanceOptions.brightness.toString());

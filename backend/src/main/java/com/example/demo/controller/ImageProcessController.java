@@ -13,9 +13,12 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.mock.web.MockMultipartFile;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
 
 @RestController
 @CrossOrigin(origins = "*")
@@ -75,34 +78,52 @@ public class ImageProcessController {
         }
     }
 
-    @PostMapping("/center-image")
-    public ResponseEntity<byte[]> centerImage(@RequestParam("image") MultipartFile file) {
+    @PostMapping("/process-custom-image")
+    public ResponseEntity<byte[]> processCustomBackgroundImage(
+            @RequestParam("personImage") String personImageBase64,
+            @RequestParam("backgroundImage") String backgroundImageBase64) {
         try {
-            if (file.isEmpty()) {
-                logger.error("Uploaded file is empty");
+            logger.info("Processing image with custom background");
+
+            // Convert Base64 to MultipartFile
+            MultipartFile personFile = base64ToMultipartFile(personImageBase64, "person.png");
+            MultipartFile backgroundFile = base64ToMultipartFile(backgroundImageBase64, "background.png");
+
+            if (personFile.isEmpty() || backgroundFile.isEmpty()) {
+                logger.error("One or more uploaded files are empty");
                 return ResponseEntity.badRequest().build();
             }
 
-            logger.info("Centering person in image: " + file.getOriginalFilename());
+            // Check if files are JPG/JPEG and convert if needed
+            MultipartFile processablePersonFile = imageProcessingService_v2.ensurePngFormat(personFile);
+            MultipartFile processableBackgroundFile = imageProcessingService_v2.ensurePngFormat(backgroundFile);
 
-            // Check if file is JPG/JPEG and convert if needed
-            MultipartFile processableFile = imageProcessingService_v2.ensurePngFormat(file);
+            // Use the properly formatted files
+            byte[] processedImage = imageProcessingService_v2.overlayPersonOnBackground(
+                    processablePersonFile,
+                    processableBackgroundFile);
 
-            // Use the properly formatted file
-            byte[] centeredImage = imageProcessingService_v2.centerPersonInImage(processableFile);
-
-            if (centeredImage == null || centeredImage.length == 0) {
-                logger.error("Centered image is null or empty");
+            if (processedImage == null || processedImage.length == 0) {
+                logger.error("Processed image is null or empty");
                 return ResponseEntity.internalServerError().build();
             }
 
             return ResponseEntity.ok()
                     .contentType(MediaType.IMAGE_PNG)
-                    .body(centeredImage);
+                    .body(processedImage);
 
         } catch (Exception e) {
-            logger.error("Error centering image: ", e);
+            logger.error("Error processing image with custom background: ", e);
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    private MultipartFile base64ToMultipartFile(String base64, String filename) throws IOException {
+        // Remove data:image/png;base64, prefix if present
+        String[] parts = base64.split(",");
+        String imageData = parts.length > 1 ? parts[1] : parts[0];
+
+        byte[] decodedBytes = java.util.Base64.getDecoder().decode(imageData);
+        return new MockMultipartFile(filename, filename, "image/png", decodedBytes);
     }
 }
