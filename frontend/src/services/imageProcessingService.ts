@@ -53,7 +53,7 @@ class ImageProcessingService {
   }
 
   // New method to handle custom background images
-  private async applyCustomBackgroundImage(
+  public async applyCustomBackgroundImage(
     personImage: string,
     backgroundImage: string
   ): Promise<string> {
@@ -643,6 +643,55 @@ class ImageProcessingService {
       img.src = transparentImageData;
     });
   }
+  // Add this method to apply custom background image client-side
+async applyBackgroundImage(transparentImageData: string, backgroundImageUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const bgImg = new Image();
+    
+    // Load both images
+    let personLoaded = false;
+    let bgLoaded = false;
+    
+    // Function to draw when both images are loaded
+    const drawImages = () => {
+      if (!personLoaded || !bgLoaded) return;
+      
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      
+      if (!ctx) {
+        resolve(transparentImageData);
+        return;
+      }
+      
+      // Draw background image scaled to fit
+      ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+      
+      // Draw transparent person image on top
+      ctx.drawImage(img, 0, 0);
+      
+      resolve(canvas.toDataURL("image/png"));
+    };
+    
+    // Set up person image loading
+    img.onload = () => {
+      personLoaded = true;
+      drawImages();
+    };
+    
+    // Set up background image loading
+    bgImg.onload = () => {
+      bgLoaded = true;
+      drawImages();
+    };
+    
+    img.src = transparentImageData;
+    bgImg.src = backgroundImageUrl;
+  });
+}
 }
 
 export default new ImageProcessingService();
