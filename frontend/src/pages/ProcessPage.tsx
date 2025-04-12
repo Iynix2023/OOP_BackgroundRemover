@@ -67,7 +67,7 @@ const ProcessPage: React.FC = () => {
 
   // Store images at each processing step
   const [stepImages, setStepImages] = useState<{
-    [key: number]: string | null;
+    [key: string]: string | null;
   }>({});
 
   // Store crop area information
@@ -112,6 +112,10 @@ const ProcessPage: React.FC = () => {
 
   // Ref for PhotoSheetGenerator component
   const photoSheetGeneratorRef = useRef<PhotoSheetGeneratorRef>(null);
+
+  // Add this state variable to store the recommended settings
+  const [recommendedSettings, setRecommendedSettings] = useState<EnhanceOptions | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
 
   // =======================================================================
   // Step 1: Uploading the image or getting the image through camera capture
@@ -168,31 +172,47 @@ const ProcessPage: React.FC = () => {
   // =======================================================================
   const handleBackgroundChange = async (options: BackgroundOptions) => {
     setBackground(options);
-
-    // Use original uploaded image for background removal
     if (!uploadedImage) return;
 
     setIsProcessing(true);
     try {
-      const newImage = await imageProcessingService.removeBackground(
-        uploadedImage, // Use original image
-        options
-      );
-      setProcessedImage(newImage);
+      // First get transparent version (this runs ML once)
+      const transparentVersion = await fetch(`http://localhost:8080/process-transparent`, {
+        method: "POST",
+        body: await (async () => {
+          const formData = new FormData();
+          formData.append("image", await imageProcessingService.dataURLtoFile(uploadedImage, "image.png"));
+          return formData;
+        })()
+      }).then(res => res.blob()).then(blob => URL.createObjectURL(blob));
 
-      // Store the background-changed image for step 2
-      setStepImages((prev) => ({
-        ...prev,
-        2: newImage,
-      }));
+      // Store transparent version
+      setStepImages(prev => ({ ...prev, "2-transparent": transparentVersion }));
 
-      // Add to history
-      const newHistory = history.slice(0, historyIndex + 1);
-      newHistory.push(newImage);
-      setHistory(newHistory);
-      setHistoryIndex(newHistory.length - 1);
+      // Now apply background client-side (no ML needed)
+      let coloredVersion;
+      if (options.type === "transparent") {
+        coloredVersion = transparentVersion;
+      } else if (options.type === "image" && options.value) {
+        // Use client-side method for image backgrounds
+        coloredVersion = await imageProcessingService.applyBackgroundImage(
+          transparentVersion,
+          options.value
+        );
+      } else {
+        coloredVersion = await imageProcessingService.applyBackgroundColor(
+          transparentVersion,
+          options.value
+        );
+      }
+
+      // Update UI with colored version
+      setProcessedImage(coloredVersion);
+      setStepImages(prev => ({ ...prev, 2: coloredVersion }));
+
+      // Rest of your code...
     } catch (error) {
-      console.error("Error changing background:", error);
+      console.error("Error in background removal:", error);
     } finally {
       setIsProcessing(false);
     }
@@ -211,22 +231,25 @@ const ProcessPage: React.FC = () => {
   }, []);
 
   const applyCrop = async () => {
-    // Get the background-removed image from PREVIOUS step
+    // Get both versions from step 2
     const sourceImage = stepImages[2];
-    if (!sourceImage || !cropArea) return;
+    const transparentSource = stepImages["2-transparent"];
+
+    if (!sourceImage || !cropArea || !transparentSource) return;
 
     setIsProcessing(true);
     try {
-      const croppedImage = await imageProcessingService.cropImage(
-        sourceImage, // Use background-removed image instead of uploadedImage
-        cropArea
-      );
+      // Crop both versions
+      const croppedImage = await imageProcessingService.cropImage(sourceImage, cropArea);
+      const croppedTransparent = await imageProcessingService.cropImage(transparentSource, cropArea);
+
       setProcessedImage(croppedImage);
 
-      // Store the cropped image for step 3
+      // Store both cropped versions
       setStepImages((prev) => ({
         ...prev,
         3: croppedImage,
+        "3-transparent": croppedTransparent
       }));
 
       // Add to history
@@ -252,7 +275,13 @@ const ProcessPage: React.FC = () => {
   useEffect(() => {
     if (step === 4 && processedImage && !preEnhancementImage) {
       // Store the image right before entering the enhancement step
-      setPreEnhancementImage(processedImage);
+      const transparentVersion = stepImages["3-transparent"];
+      if (transparentVersion) {
+        setPreEnhancementImage(transparentVersion);
+      } else if (processedImage) {
+        // Fallback to colored version only if transparent isn't available
+        setPreEnhancementImage(processedImage);
+      }
     }
   }, [step, processedImage, preEnhancementImage]);
 
@@ -261,9 +290,9 @@ const ProcessPage: React.FC = () => {
     // Update UI state immediately
     setEnhanceOptions(options);
 
-    // Get the appropriate source image (now cropped image from step 3)
-    const sourceImage = stepImages[3]; // Changed from 3 to 2
-    if (!sourceImage) return;
+    // Use transparent source
+    const transparentSource = stepImages["3-transparent"];
+    if (!transparentSource) return;
 
     // Rest of your function remains the same, but use sourceImage
     const isReset =
@@ -288,24 +317,43 @@ const ProcessPage: React.FC = () => {
           saturation: options.saturation,
         };
 
-        // Use sourceImage instead of preEnhancementImage
-        const newImage = await imageProcessingService.enhanceImage(
-          sourceImage,
+        // Use transparent source
+        const enhancedTransparent = await imageProcessingService.enhanceImage(
+          transparentSource,
           cleanOptions
         );
 
-        if (newImage) {
-          setProcessedImage(newImage);
+        // Apply the appropriate background to the enhanced transparent image
+        let colored;
+        if (background.type === "transparent") {
+          colored = enhancedTransparent;
+        } else if (background.type === "image" && background.value) {
+          // Use image background
+          colored = await imageProcessingService.applyBackgroundImage(
+            enhancedTransparent,
+            background.value
+          );
+        } else {
+          // Use color background
+          colored = await imageProcessingService.applyBackgroundColor(
+            enhancedTransparent,
+            background.value
+          );
+        }
+
+        if (colored) {
+          setProcessedImage(colored);
 
           // Store the enhanced image for step 4
           setStepImages((prev) => ({
             ...prev,
-            4: newImage,
+            4: colored,
+            "4-transparent": enhancedTransparent
           }));
 
           // Add to history
           const newHistory = history.slice(0, historyIndex + 1);
-          newHistory.push(newImage);
+          newHistory.push(colored);
           setHistory(newHistory);
           setHistoryIndex(newHistory.length - 1);
         }
@@ -318,22 +366,48 @@ const ProcessPage: React.FC = () => {
     };
 
     if (isReset) {
-      // For reset, just use the original source image
-      setProcessedImage(sourceImage);
+      // Apply background to transparent image instead of using it directly
+      setIsProcessing(true);
 
-      // Store the reset image for step 4
-      setStepImages((prev) => ({
-        ...prev,
-        4: sourceImage,
-      }));
+      // Apply the appropriate background to the transparent image
+      let reapplyBackgroundPromise;
+      if (background.type === "transparent") {
+        reapplyBackgroundPromise = Promise.resolve(transparentSource);
+      } else if (background.type === "image" && background.value) {
+        reapplyBackgroundPromise = imageProcessingService.applyBackgroundImage(
+          transparentSource, 
+          background.value
+        );
+      } else {
+        reapplyBackgroundPromise = imageProcessingService.applyBackgroundColor(
+          transparentSource,
+          background.value || "#FFFFFF"
+        );
+      }
 
-      // Add to history
-      const newHistory = history.slice(0, historyIndex + 1);
-      newHistory.push(sourceImage);
-      setHistory(newHistory);
-      setHistoryIndex(newHistory.length - 1);
+      reapplyBackgroundPromise.then(coloredReset => {
+        setProcessedImage(coloredReset);
 
-      // Clear the timer since we're not actually making a request
+        // Store the reset image with background for step 4
+        setStepImages((prev) => ({
+          ...prev,
+          4: coloredReset,
+          "4-transparent": transparentSource
+        }));
+
+        // Add to history
+        const newHistory = history.slice(0, historyIndex + 1);
+        newHistory.push(coloredReset);
+        setHistory(newHistory);
+        setHistoryIndex(newHistory.length - 1);
+
+        setIsProcessing(false);
+      }).catch(error => {
+        console.error("Error applying background during reset:", error);
+        setIsProcessing(false);
+      });
+
+      // Clear the timer since we're handling it separately
       if (debounceTimer.current !== null) {
         window.clearTimeout(debounceTimer.current);
         debounceTimer.current = null;
@@ -475,7 +549,7 @@ const ProcessPage: React.FC = () => {
                 </>
               );
               localStorage.removeItem("imageToUpload");
-
+        
               // Optional redirect to file (after delay)
               setTimeout(() => {
                 window.open(result.driveUrl, "_blank");
@@ -487,7 +561,8 @@ const ProcessPage: React.FC = () => {
           .catch((err) => {
             toast.error("Upload error: " + err.message);
           });
-
+        
+    
         // fetch("http://localhost:8080/upload", {
         //   method: "POST",
         //   body: formData,
@@ -537,13 +612,14 @@ const ProcessPage: React.FC = () => {
       //   alert("You're authorized, but there's no image to upload.");
       // }
 
+
       // Clean up the URL
       const url = new URL(window.location.href);
       url.searchParams.delete("authorized");
       window.history.replaceState({}, document.title, url.toString());
     }
-  }, []);
-
+  }, []);  
+  
   //   if (authorized === "true") {
   //     if (processedImage) {
   //       uploadToCloud(processedImage)
@@ -784,20 +860,18 @@ const ProcessPage: React.FC = () => {
                   className="flex flex-col items-center flex-1"
                 >
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      stepNumber === step
+                    className={`w-10 h-10 rounded-full flex items-center justify-center ${stepNumber === step
                         ? "bg-indigo-600 text-white"
                         : stepNumber < step
-                        ? "bg-indigo-200 text-indigo-700"
-                        : "bg-gray-200 text-gray-500"
-                    }`}
+                          ? "bg-indigo-200 text-indigo-700"
+                          : "bg-gray-200 text-gray-500"
+                      }`}
                   >
                     {stepNumber < step ? <Check size={18} /> : stepNumber}
                   </div>
                   <div
-                    className={`h-1 w-full mt-4 ${
-                      stepNumber < step ? "bg-indigo-400" : "bg-gray-200"
-                    }`}
+                    className={`h-1 w-full mt-4 ${stepNumber < step ? "bg-indigo-400" : "bg-gray-200"
+                      }`}
                   />
                 </div>
               ))}

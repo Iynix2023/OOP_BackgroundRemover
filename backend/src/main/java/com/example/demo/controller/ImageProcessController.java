@@ -118,6 +118,40 @@ public class ImageProcessController {
         }
     }
 
+    @PostMapping("/process-transparent")
+    public ResponseEntity<byte[]> processTransparentImage(@RequestParam("image") MultipartFile file) {
+        try {
+            if (file.isEmpty()) {
+                logger.error("Uploaded file is empty");
+                return ResponseEntity.badRequest().build();
+            }
+
+            logger.info("Processing image with transparent background");
+            
+            // Check if file is JPG/JPEG and convert if needed
+            MultipartFile processableFile = imageProcessingService_v2.ensurePngFormat(file);
+
+            // Get transparent version
+            byte[] processedImage = imageProcessingService_v2.removeBackground(
+                    processableFile,
+                    "transparent", 
+                    null);
+
+            if (processedImage == null || processedImage.length == 0) {
+                logger.error("Processed transparent image is null or empty");
+                return ResponseEntity.internalServerError().build();
+            }
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.IMAGE_PNG)
+                    .body(processedImage);
+
+        } catch (Exception e) {
+            logger.error("Error processing transparent image: ", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
     private MultipartFile base64ToMultipartFile(String base64, String filename) throws IOException {
         // Remove data:image/png;base64, prefix if present
         String[] parts = base64.split(",");
