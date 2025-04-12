@@ -97,7 +97,7 @@ class ImageProcessingService {
   }
 
   // Add this helper method to convert dataURL to File object
-  private async dataURLtoFile(
+  public async dataURLtoFile(
     dataURL: string,
     filename: string
   ): Promise<File> {
@@ -613,6 +613,35 @@ class ImageProcessingService {
       console.error("Error converting blob URL to base64:", error);
       throw error;
     }
+  }
+
+  // Add this method to apply background to transparent image client-side
+  async applyBackgroundColor(transparentImageData: string, backgroundColor: string): Promise<string> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext("2d");
+        
+        if (!ctx) {
+          resolve(transparentImageData);
+          return;
+        }
+        
+        // Fill background with color
+        ctx.fillStyle = backgroundColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw transparent image on top
+        ctx.drawImage(img, 0, 0);
+        
+        resolve(canvas.toDataURL("image/png"));
+      };
+      
+      img.src = transparentImageData;
+    });
   }
 }
 
