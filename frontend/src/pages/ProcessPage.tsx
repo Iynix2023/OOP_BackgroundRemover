@@ -193,12 +193,6 @@ const ProcessPage: React.FC = () => {
       let coloredVersion;
       if (options.type === "transparent") {
         coloredVersion = transparentVersion;
-      } else if (options.type === "image" && options.value) {
-        // Use client-side method for image backgrounds
-        coloredVersion = await imageProcessingService.applyBackgroundImage(
-          transparentVersion,
-          options.value
-        );
       } else {
         coloredVersion = await imageProcessingService.applyBackgroundColor(
           transparentVersion,
@@ -323,23 +317,11 @@ const ProcessPage: React.FC = () => {
           cleanOptions
         );
 
-        // Apply the appropriate background to the enhanced transparent image
-        let colored;
-        if (background.type === "transparent") {
-          colored = enhancedTransparent;
-        } else if (background.type === "image" && background.value) {
-          // Use image background
-          colored = await imageProcessingService.applyBackgroundImage(
-            enhancedTransparent,
-            background.value
-          );
-        } else {
-          // Use color background
-          colored = await imageProcessingService.applyBackgroundColor(
-            enhancedTransparent,
-            background.value
-          );
-        }
+        // Apply background color client-side to the enhanced transparent image
+        const colored = await imageProcessingService.applyBackgroundColor(
+          enhancedTransparent,
+          background.type === "color" ? background.value : "#FFFFFF"
+        );
 
         if (colored) {
           setProcessedImage(colored);
@@ -369,23 +351,11 @@ const ProcessPage: React.FC = () => {
       // Apply background to transparent image instead of using it directly
       setIsProcessing(true);
 
-      // Apply the appropriate background to the transparent image
-      let reapplyBackgroundPromise;
-      if (background.type === "transparent") {
-        reapplyBackgroundPromise = Promise.resolve(transparentSource);
-      } else if (background.type === "image" && background.value) {
-        reapplyBackgroundPromise = imageProcessingService.applyBackgroundImage(
-          transparentSource, 
-          background.value
-        );
-      } else {
-        reapplyBackgroundPromise = imageProcessingService.applyBackgroundColor(
-          transparentSource,
-          background.value || "#FFFFFF"
-        );
-      }
-
-      reapplyBackgroundPromise.then(coloredReset => {
+      // Apply background color to transparent image before displaying
+      imageProcessingService.applyBackgroundColor(
+        transparentSource,
+        background.type === "color" ? background.value : "#FFFFFF"
+      ).then(coloredReset => {
         setProcessedImage(coloredReset);
 
         // Store the reset image with background for step 4
@@ -401,9 +371,6 @@ const ProcessPage: React.FC = () => {
         setHistory(newHistory);
         setHistoryIndex(newHistory.length - 1);
 
-        setIsProcessing(false);
-      }).catch(error => {
-        console.error("Error applying background during reset:", error);
         setIsProcessing(false);
       });
 
