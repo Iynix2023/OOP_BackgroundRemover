@@ -4,6 +4,7 @@ import HomePage from './pages/HomePage';
 import ProcessPage from './pages/ProcessPage';
 import BatchPage from './pages/BatchPage';
 
+
 function App() {
   return (
     <Router>

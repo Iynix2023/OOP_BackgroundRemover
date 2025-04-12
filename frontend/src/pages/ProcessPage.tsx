@@ -20,6 +20,35 @@ import {
 import imageProcessingService from "../services/imageProcessingService";
 import PhotoSheetGenerator from "../components/PhotoSheetGenerator";
 
+// import cloudUploadService from "../services/cloudUploadService";
+
+import { uploadToCloud } from "../services/cloudUploadService";
+
+import { ToastContainer, toast } from 'react-toastify';
+
+
+
+// useEffect(() => {
+//   const params = new URLSearchParams(window.location.search);
+//   if (params.get("authorized") === "true") {
+//     alert("Authorization successful! You can now upload to cloud.");
+//     // You could even trigger an auto-upload here if desired
+//   }
+// }, []);
+
+
+
+function base64ToBlob(base64: string, mime: string) {
+  const byteString = atob(base64.split(",")[1]);
+  const arrayBuffer = new ArrayBuffer(byteString.length);
+  const intArray = new Uint8Array(arrayBuffer);
+  for (let i = 0; i < byteString.length; i++) {
+    intArray[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([intArray], { type: mime });
+}
+
+
 const ProcessPage: React.FC = () => {
   const navigate = useNavigate();
   const debounceTimer = useRef<number | null>(null);
@@ -217,6 +246,8 @@ const ProcessPage: React.FC = () => {
   //   }
   // };
 
+
+
   // Modify the step change logic to capture the image before enhancement
   useEffect(() => {
     if (step === 4 && processedImage && !preEnhancementImage) {
@@ -405,7 +436,125 @@ const ProcessPage: React.FC = () => {
     setStep(step - 1);
   };
 
-  const renderStepContent = () => {
+
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const authorized = params.get("authorized");
+
+    if (authorized === "true") {
+      const base64Image = localStorage.getItem("imageToUpload");
+    
+      if (base64Image) {
+        const blob = base64ToBlob(base64Image, "image/png");
+    
+        const formData = new FormData();
+        formData.append("file", blob, "id-photo.png");
+        formData.append("description", "Uploaded from ID Photo Processor");
+
+        fetch("http://localhost:8080/upload", {
+          method: "POST",
+          body: formData,
+        })
+          .then(async res => {
+            const result = await res.json();
+            if (res.ok) {
+              toast.success(
+                <>
+                  ✅ Uploaded: <strong>{result.fileName}</strong> <br />
+                  <a href={result.driveUrl} target="_blank" rel="noopener noreferrer" className="underline text-blue-400">
+                    Open in Google Drive
+                  </a>
+                </>
+              );
+              localStorage.removeItem("imageToUpload");
+        
+              // Optional redirect to file (after delay)
+              setTimeout(() => {
+                window.open(result.driveUrl, "_blank");
+              }, 5000);
+            } else {
+              toast.error(result.error || "Upload failed");
+            }
+          })
+          .catch((err) => {
+            toast.error("Upload error: " + err.message);
+          });
+        
+    
+        // fetch("http://localhost:8080/upload", {
+        //   method: "POST",
+        //   body: formData,
+        // })
+        //   .then((res) => {
+        //     if (res.ok) {
+
+        //       localStorage.removeItem("imageToUpload");
+
+        //       // OPTIONAL: parse JSON with file metadata
+        //       const { fileName, driveUrl } = await res.json(); // <-- see backend below
+
+        //       toast.success(
+        //         <>
+        //           ✅ Image uploaded! <br />
+        //           <a href={driveUrl} target="_blank" rel="noopener noreferrer" className="underline text-blue-400">
+        //             Open in Google Drive
+        //           </a>
+        //         </>
+        //       );
+
+        //       // Optional: redirect after 5s
+        //       setTimeout(() => {
+        //         window.location.href = driveUrl;
+        //       }, 5000);
+        //     } else {
+        //       toast.error("Upload failed 😞");
+        //     }
+        //   })
+        //   .catch((err) => {
+        //     toast.error("Upload error: " + err.message);
+        //   });
+      } else {
+        toast.info("You're authorized, but no image found.");
+      }
+
+      //         alert("Image uploaded to Google Drive successfully!");
+      //         localStorage.removeItem("imageToUpload");
+      //       } else {
+      //         alert("Upload failed");
+      //       }
+      //     })
+      //     .catch((err) => {
+      //       alert("Upload error: " + err.message);
+      //     });
+      // } else {
+      //   alert("You're authorized, but there's no image to upload.");
+      // }
+    
+      // Clean up the URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete("authorized");
+      window.history.replaceState({}, document.title, url.toString());
+    }
+  }, []);  
+  
+  //   if (authorized === "true") {
+  //     if (processedImage) {
+  //       uploadToCloud(processedImage)
+  //         .then((msg) => alert("Upload successful: " + msg))
+  //         .catch((err) => alert("Upload failed: " + err.message));
+  //     } else {
+  //       alert("You're authorized, but there's no image to upload.");
+  //     }
+  
+  //     // Optional: Clean up the URL to remove ?authorized=true
+  //     const url = new URL(window.location.href);
+  //     url.searchParams.delete("authorized");
+  //     window.history.replaceState({}, document.title, url.toString());
+  //   }
+  // }, [processedImage]);
+
+  const renderStepContent = (): JSX.Element | null => {
     switch (step) {
       case 1:
         return (
@@ -594,7 +743,88 @@ const ProcessPage: React.FC = () => {
                     />
                   </div>
                 )}
+
                 <div className="mt-6 flex space-x-4">
+                  <button
+                    className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                    onClick={downloadImage}
+                  >
+                    <Save size={18} className="mr-2" />
+                    Download
+                  </button>
+                  <button
+                    className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    onClick={async () => {
+                      try {
+                        if (!processedImage) return;
+
+                        // Store image in localStorage before redirecting
+                        localStorage.setItem("imageToUpload", processedImage);
+
+                        window.location.href = "http://localhost:8080/authorize";
+                      } catch (err: any) {
+                        alert("Upload failed: " + err.message);
+                      }
+                    }}
+                    
+                        // OPTIONAL: Check if already authorized
+                        // const isAuthorized = await checkAuthorization();
+                        // if (!isAuthorized) {
+                        //   window.location.href = "http://localhost:8080/authorize";
+                        //   return;
+                        // }
+                    
+                        // OR: Always go to OAuth flow first (simpler)
+                    //     window.location.href = "http://localhost:8080/authorize";
+                    //   } catch (err: any) {
+                    //     alert("Upload failed: " + err.message);
+                    //   }
+                    // }}
+
+
+                    // onClick={async () => {
+                    //   try {
+                    //     if (!processedImage) return;
+                    //     const message = await uploadToCloud(processedImage);
+                    //     alert("Upload successful: " + message);
+                    //   } catch (err: any) {
+                    //     alert("Upload failed: " + err.message);
+                    //   }
+                    // }}
+                  >
+                    <Save size={18} className="mr-2" />
+                    Save to Cloud
+                  </button>
+
+                  {/* <button
+                    className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    onClick={async () => {
+                      if (processedImage) {
+                        const result = await cloudUploadService.uploadToCloud(processedImage);
+                        alert(result); // optionally use a toast
+                      }
+                    }}
+                  >
+                    <Save size={18} className="mr-2" />
+                    Save to Cloud
+                  </button> */}
+                </div>
+
+                
+                {/* <div className="mt-6 flex space-x-4">
+                <button
+                  className="flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                  onClick={async () => {
+                    if (processedImage) {
+                      const result = await cloudUploadService.uploadToCloud(processedImage);
+                      alert(result);  // optionally replace with toast/notification
+                    }
+                  }}
+                >
+                  <Save size={18} className="mr-2" />
+                  Save to Cloud
+                </button> */}
+
                   {/* <button
                     className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
                     onClick={downloadImage}
@@ -612,8 +842,8 @@ const ProcessPage: React.FC = () => {
                   >
                     <Save size={18} className="mr-2" />
                     Save to Cloud
-                  </button> */}
-                </div>
+                  </button> 
+                </div>*/}
               </div>
               <div className="space-y-6">
                 <ComplianceChecker result={complianceResult} />
@@ -731,6 +961,19 @@ const ProcessPage: React.FC = () => {
       )}
 
       <Footer />
+
+      <ToastContainer
+        position="bottom-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
+
     </div>
   );
 };
