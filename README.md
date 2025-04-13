@@ -1,23 +1,49 @@
-# OOP_BackgroundRemover
 
-A Java-based image processing system using OpenCV for background removal, batch processing, and automatic clothes replacement. Supports automated bulk processing and manual editing via GUI, ensuring high-quality ID photos with AI-powered segmentation and multi-threading for efficiency.
+##SnapForm
 
-Frontend:
+The project features:
+- ✂️ Background removal using DJL (Deep Java Library) with PyTorch and DeepLabV3.
+- 📸 Optional image enhancement and clothes replacement using OpenCV.
+- 🚀 Multi-threaded bulk processing for large sets of photos.
+- 🌐 A modern frontend built with React + Tailwind CSS.
+- 🧠 Manual + automatic modes for better control and user experience.
 
-1. Run react frontend server (port 5173)
-```
+---
+
+## 🧱 Tech Stack
+
+### Backend
+- Java 17
+- Spring Boot
+- DJL (Deep Java Library) with PyTorch engine
+- OpenCV
+- Maven
+
+### Frontend
+- React & Vite
+- Tailwind CSS
+- TypeScript
+
+---
+
+## 🚀 Getting Started
+
+### Frontend
 cd frontend
 npm install
-npm run dev
-```
+npm run dev  # Runs on http://localhost:5173
 
-Backend: 
-1. Run springboot backend server (port 8080)
-```
+### Backend
 cd backend
-mvnw package
-mvnw spring-boot:run
-```
+mvn package
+mvn spring-boot:run  
 
-To do:
-Add GrabCut function to the backend and link frontend interaction with backend
+
+🖼️ Features
+
+- Photo input & Management
+- User Experience & Control
+- Editing & Customisation Tools
+- ID Compliance Checker
+
+For google drive integration, only smu accounts is allowed due to google's restriction
