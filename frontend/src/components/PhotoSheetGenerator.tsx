@@ -499,7 +499,7 @@ const PhotoSheetGenerator = forwardRef<
               // Save to localStorage and redirect to start OAuth flow
               localStorage.setItem("imageToUpload", sheetImage);
               window.location.href = "http://localhost:8080/authorize";
-            }}
+              }}
 
             // onClick={async () => {
             //   if (!sheetImage) return;

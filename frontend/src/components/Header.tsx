@@ -8,7 +8,7 @@ const Header: React.FC = () => {
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
         <Link to="/" className="flex items-center space-x-2">
           <Camera size={28} />
-          <span className="text-xl font-bold">ID Photo Processor</span>
+          <span className="text-xl font-bold">BGone</span>
         </Link>
         
         <nav className="hidden md:flex space-x-6">

@@ -5,7 +5,7 @@ const Footer: React.FC = () => {
     <footer className="bg-gray-800 text-white py-6">
       <div className="container mx-auto px-4">
         <div className="flex justify-center items-center">
-          <p className="text-sm text-center">© 2025 ID Photo Processor. All rights reserved.</p>
+          <p className="text-sm text-center">© 2025 BGone. All rights reserved.</p>
         </div>
       </div>
     </footer>
