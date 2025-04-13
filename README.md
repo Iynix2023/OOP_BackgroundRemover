@@ -1,5 +1,5 @@
 
-##BGone
+## BGone
 
 The project features:
 - ✂️ Background removal using DJL (Deep Java Library) with PyTorch and DeepLabV3.
@@ -29,14 +29,18 @@ The project features:
 ## 🚀 Getting Started
 
 ### Frontend
+```
 cd frontend
 npm install
 npm run dev  # Runs on http://localhost:5173
+```
 
 ### Backend
+```
 cd backend
 mvn package
-mvn spring-boot:run  
+mvn spring-boot:run
+```
 
 
 🖼️ Features
