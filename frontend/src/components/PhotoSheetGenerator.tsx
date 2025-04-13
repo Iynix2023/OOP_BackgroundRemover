@@ -73,6 +73,8 @@ const PhotoSheetGenerator = forwardRef<
     if (!processedImage) return;
 
     setIsGenerating(true);
+    try {
+      // Try server-side generation first
       try {
         // Use the server-side generation for high quality output
         const result = await sheetGeneratorService.generatePhotoSheet(
@@ -82,219 +84,228 @@ const PhotoSheetGenerator = forwardRef<
             size: exportOptions.size,
             layout: exportOptions.layout,
             customWidth: customDimensions?.width,
-            customHeight: customDimensions?.height
+            customHeight: customDimensions?.height,
           }
         );
-        
+
         setSheetImage(result);
+        // IMPORTANT: Make sure to call the callback here
+        if (onImageGenerated) {
+          onImageGenerated(result);
+        }
         setIsGenerating(false);
       } catch (error) {
-        console.error('Error generating sheet:', error);
-        
+        console.error("Error generating sheet from server:", error);
+
         // Fall back to client-side generation
         generateSheetClientSide();
       }
-    };
-    
-    // Add this as a fallback method
-    const generateSheetClientSide = () => {
-      // Your existing canvas-based code here
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
+    } catch (error) {
+      console.error("Error in generateSheet:", error);
+      setIsGenerating(false);
+    }
+  };
 
-        if (!ctx) {
-          console.error("Could not get canvas context");
-          setIsGenerating(false);
-          return;
-        }
+  // Add this as a fallback method
+  const generateSheetClientSide = () => {
+    // Your existing canvas-based code here
+    if (!processedImage) {
+      setIsGenerating(false);
+      return;
+    }
 
-        // Set dimensions based on layout
-        let cols, rows;
-        switch (exportOptions.layout) {
-          case ExportLayout.GRID_2x2:
-            cols = 2;
-            rows = 2;
-            break;
-          case ExportLayout.GRID_4x6:
-            cols = 4;
-            rows = 6;
-            break;
-          default:
-            // Single image - FIX: Still need to call onImageGenerated
-            setSheetImage(processedImage);
-            setIsGenerating(false);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
 
-            // Call callback for single image as well
-            if (onImageGenerated) {
-              onImageGenerated(processedImage);
-            }
-            return;
-        }
-
-        // Define photo standards with Singapore focus and Indian passport
-        const photoStandards = {
-          // Singapore NRIC/Passport (35x45mm)
-          [ExportSize.STANDARD_35x45]: {
-            width: 140,
-            height: 180,
-            aspectRatio: 7 / 9,
-            name: "Singapore NRIC/Passport (35x45mm)",
-          },
-          // US Passport/Visa (2x2 inch square format)
-          [ExportSize.US_PASSPORT_2x2]: {
-            width: 200,
-            height: 200,
-            aspectRatio: 1,
-            name: "US Passport/Visa (2x2 inch)",
-          },
-          // China Visa (33x48mm)
-          [ExportSize.CHINA_VISA]: {
-            width: 132,
-            height: 192,
-            aspectRatio: 33 / 48,
-            name: "China Visa (33x48mm)",
-          },
-          // Malaysia Visa/Passport (35x50mm)
-          [ExportSize.MALAYSIA_PASSPORT]: {
-            width: 140,
-            height: 200,
-            aspectRatio: 7 / 10,
-            name: "Malaysia Visa/Passport (35x50mm)",
-          },
-          // Australia Visa (35x45mm, white background)
-          [ExportSize.AUSTRALIA_VISA]: {
-            width: 140,
-            height: 180,
-            aspectRatio: 7 / 9,
-            name: "Australia Visa (35x45mm)",
-          },
-          // Indian Passport/Visa (35x35mm)
-          [ExportSize.INDIA_PASSPORT]: {
-            width: 140,
-            height: 140,
-            aspectRatio: 1,
-            name: "Indian Passport/Visa (35x35mm)",
-          },
-          // SMU Student ID
-          [ExportSize.SMU_ID]: {
-            width: 130,
-            height: 170,
-            aspectRatio: 13 / 17,
-            name: "SMU Student ID",
-          },
-          // Custom size
-          [ExportSize.CUSTOM]: {
-            width: customDimensions.width || 160,
-            height: customDimensions.height || 120,
-            aspectRatio:
-              (customDimensions.width || 160) /
-              (customDimensions.height || 120),
-            name: "Custom Size",
-          },
-        };
-
-        // Get selected standard
-        const selectedStandard =
-          photoStandards[exportOptions.size] ||
-          photoStandards[ExportSize.STANDARD_35x45];
-        const photoWidth = selectedStandard.width;
-        const photoHeight = selectedStandard.height;
-        const aspectRatio = selectedStandard.aspectRatio;
-
-        // Calculate dimensions of final sheet
-        const padding = 20;
-        const borderWidth = 30;
-
-        canvas.width =
-          borderWidth * 2 + cols * photoWidth + (cols - 1) * padding;
-        canvas.height =
-          borderWidth * 2 + rows * photoHeight + (rows - 1) * padding;
-
-        // Fill white background
-        ctx.fillStyle = "white";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // Calculate source dimensions to maintain aspect ratio
-        const sourceAspectRatio = img.width / img.height;
-        let sourceX = 0;
-        let sourceY = 0;
-        let sourceWidth = img.width;
-        let sourceHeight = img.height;
-
-        // Smart cropping with face preservation
-        if (sourceAspectRatio > aspectRatio) {
-          // Image is wider than needed, crop sides
-          sourceWidth = img.height * aspectRatio;
-          sourceX = (img.width - sourceWidth) / 2;
-        } else {
-          // Image is taller than needed, crop top/bottom
-          sourceHeight = img.width / aspectRatio;
-          // Position crop to favor the top part of the image (where the face usually is)
-          sourceY = (img.height - sourceHeight) * 0.3; // 30% from the top
-        }
-
-        // Draw images in grid
-        for (let row = 0; row < rows; row++) {
-          for (let col = 0; col < cols; col++) {
-            const x = borderWidth + col * (photoWidth + padding);
-            const y = borderWidth + row * (photoHeight + padding);
-
-            // First draw a white background for each photo cell
-            ctx.fillStyle = "white";
-            ctx.fillRect(x, y, photoWidth, photoHeight);
-
-            // Draw the image with proper cropping to maintain aspect ratio
-            ctx.drawImage(
-              img,
-              sourceX,
-              sourceY,
-              sourceWidth,
-              sourceHeight, // Source rectangle
-              x,
-              y,
-              photoWidth,
-              photoHeight // Destination rectangle
-            );
-
-            // Add a subtle border around each photo
-            ctx.strokeStyle = "#e5e5e5";
-            ctx.lineWidth = 1;
-            ctx.strokeRect(x, y, photoWidth, photoHeight);
-          }
-        }
-
-        // Add a helpful annotation at the bottom of the sheet
-        ctx.fillStyle = "#666";
-        ctx.font = "12px Arial";
-        ctx.textAlign = "center";
-        ctx.fillText(
-          `${selectedStandard.name} - ${cols}x${rows} Grid`,
-          canvas.width / 2,
-          canvas.height - 10
-        );
-
-        // Convert to data URL
-        const dataUrl = canvas.toDataURL(
-          exportOptions.format === ExportFormat.JPEG
-            ? "image/jpeg"
-            : "image/png"
-        );
-        setSheetImage(dataUrl);
+      if (!ctx) {
+        console.error("Could not get canvas context");
         setIsGenerating(false);
+        return;
+      }
 
-        // Call the callback if it exists
-        if (onImageGenerated && dataUrl) {
-          onImageGenerated(dataUrl);
-        }
+      // Set dimensions based on layout
+      let cols, rows;
+      switch (exportOptions.layout) {
+        case ExportLayout.GRID_2x2:
+          cols = 2;
+          rows = 2;
+          break;
+        case ExportLayout.GRID_4x6:
+          cols = 4;
+          rows = 6;
+          break;
+        default:
+          // Single image - FIX: Still need to call onImageGenerated
+          setSheetImage(processedImage);
+          setIsGenerating(false);
+
+          // Call callback for single image as well
+          if (onImageGenerated) {
+            onImageGenerated(processedImage);
+          }
+          return;
+      }
+
+      // Define photo standards with Singapore focus and Indian passport
+      const photoStandards = {
+        // Singapore NRIC/Passport (35x45mm)
+        [ExportSize.STANDARD_35x45]: {
+          width: 140,
+          height: 180,
+          aspectRatio: 7 / 9,
+          name: "Singapore NRIC/Passport (35x45mm)",
+        },
+        // US Passport/Visa (2x2 inch square format)
+        [ExportSize.US_PASSPORT_2x2]: {
+          width: 200,
+          height: 200,
+          aspectRatio: 1,
+          name: "US Passport/Visa (2x2 inch)",
+        },
+        // China Visa (33x48mm)
+        [ExportSize.CHINA_VISA]: {
+          width: 132,
+          height: 192,
+          aspectRatio: 33 / 48,
+          name: "China Visa (33x48mm)",
+        },
+        // Malaysia Visa/Passport (35x50mm)
+        [ExportSize.MALAYSIA_PASSPORT]: {
+          width: 140,
+          height: 200,
+          aspectRatio: 7 / 10,
+          name: "Malaysia Visa/Passport (35x50mm)",
+        },
+        // Australia Visa (35x45mm, white background)
+        [ExportSize.AUSTRALIA_VISA]: {
+          width: 140,
+          height: 180,
+          aspectRatio: 7 / 9,
+          name: "Australia Visa (35x45mm)",
+        },
+        // Indian Passport/Visa (35x35mm)
+        [ExportSize.INDIA_PASSPORT]: {
+          width: 140,
+          height: 140,
+          aspectRatio: 1,
+          name: "Indian Passport/Visa (35x35mm)",
+        },
+        // SMU Student ID
+        [ExportSize.SMU_ID]: {
+          width: 130,
+          height: 170,
+          aspectRatio: 13 / 17,
+          name: "SMU Student ID",
+        },
+        // Custom size
+        [ExportSize.CUSTOM]: {
+          width: customDimensions.width || 160,
+          height: customDimensions.height || 120,
+          aspectRatio:
+            (customDimensions.width || 160) / (customDimensions.height || 120),
+          name: "Custom Size",
+        },
       };
 
-      img.src = processedImage;
-      
-       // Add error handling for image loading
+      // Get selected standard
+      const selectedStandard =
+        photoStandards[exportOptions.size] ||
+        photoStandards[ExportSize.STANDARD_35x45];
+      const photoWidth = selectedStandard.width;
+      const photoHeight = selectedStandard.height;
+      const aspectRatio = selectedStandard.aspectRatio;
+
+      // Calculate dimensions of final sheet
+      const padding = 20;
+      const borderWidth = 30;
+
+      canvas.width = borderWidth * 2 + cols * photoWidth + (cols - 1) * padding;
+      canvas.height =
+        borderWidth * 2 + rows * photoHeight + (rows - 1) * padding;
+
+      // Fill white background
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Calculate source dimensions to maintain aspect ratio
+      const sourceAspectRatio = img.width / img.height;
+      let sourceX = 0;
+      let sourceY = 0;
+      let sourceWidth = img.width;
+      let sourceHeight = img.height;
+
+      // Smart cropping with face preservation
+      if (sourceAspectRatio > aspectRatio) {
+        // Image is wider than needed, crop sides
+        sourceWidth = img.height * aspectRatio;
+        sourceX = (img.width - sourceWidth) / 2;
+      } else {
+        // Image is taller than needed, crop top/bottom
+        sourceHeight = img.width / aspectRatio;
+        // Position crop to favor the top part of the image (where the face usually is)
+        sourceY = (img.height - sourceHeight) * 0.3; // 30% from the top
+      }
+
+      // Draw images in grid
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const x = borderWidth + col * (photoWidth + padding);
+          const y = borderWidth + row * (photoHeight + padding);
+
+          // First draw a white background for each photo cell
+          ctx.fillStyle = "white";
+          ctx.fillRect(x, y, photoWidth, photoHeight);
+
+          // Draw the image with proper cropping to maintain aspect ratio
+          ctx.drawImage(
+            img,
+            sourceX,
+            sourceY,
+            sourceWidth,
+            sourceHeight, // Source rectangle
+            x,
+            y,
+            photoWidth,
+            photoHeight // Destination rectangle
+          );
+
+          // Add a subtle border around each photo
+          ctx.strokeStyle = "#e5e5e5";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x, y, photoWidth, photoHeight);
+        }
+      }
+
+      // Add a helpful annotation at the bottom of the sheet
+      ctx.fillStyle = "#666";
+      ctx.font = "12px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(
+        `${selectedStandard.name} - ${cols}x${rows} Grid`,
+        canvas.width / 2,
+        canvas.height - 10
+      );
+
+      // Convert to data URL
+      const dataUrl = canvas.toDataURL(
+        exportOptions.format === ExportFormat.JPEG ? "image/jpeg" : "image/png"
+      );
+      setSheetImage(dataUrl);
+      setIsGenerating(false);
+
+      // Call the callback if it exists
+      if (onImageGenerated && dataUrl) {
+        onImageGenerated(dataUrl);
+      }
+    };
+
+    img.src = processedImage;
+
+    // Add error handling for image loading
     img.onerror = () => {
-      console.error('Error loading image');
+      console.error("Error loading image");
       setIsGenerating(false);
     };
   };
@@ -484,33 +495,30 @@ const PhotoSheetGenerator = forwardRef<
                 toast.error("No image to upload.");
                 return;
               }
-            
+
               // Save to localStorage and redirect to start OAuth flow
               localStorage.setItem("imageToUpload", sheetImage);
               window.location.href = "http://localhost:8080/authorize";
             }}
-            
-
-
 
             // onClick={async () => {
             //   if (!sheetImage) return;
-            
+
             //   try {
             //     // Convert base64 to Blob
             //     const blob = await (await fetch(sheetImage)).blob();
-            
+
             //     const formData = new FormData();
             //     formData.append("file", blob, "id-photo-sheet.png");
             //     formData.append("description", "Generated from ID Photo Processor");
-            
+
             //     const res = await fetch("http://localhost:8080/upload", {
             //       method: "POST",
             //       body: formData,
             //     });
-            
+
             //     const result = await res.json();
-            
+
             //     if (res.ok) {
             //       // Show toast with drive link
             //       toast.success(
@@ -526,7 +534,7 @@ const PhotoSheetGenerator = forwardRef<
             //           </a>
             //         </>
             //       );
-            
+
             //       // Optionally open file after a short delay
             //       setTimeout(() => {
             //         window.open(result.driveUrl, "_blank");
@@ -538,7 +546,6 @@ const PhotoSheetGenerator = forwardRef<
             //     toast.error("Upload error: " + err.message);
             //   }
             // }}
-            
           >
             Save to Cloud
           </button>

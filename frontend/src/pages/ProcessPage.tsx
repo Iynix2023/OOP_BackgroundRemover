@@ -36,10 +36,6 @@ import { uploadToCloud } from "../services/cloudUploadService";
 
 import { ToastContainer, toast } from "react-toastify";
 
-
-
-
-
 const ProcessPage: React.FC = () => {
   const navigate = useNavigate();
   const debounceTimer = useRef<number | null>(null);
@@ -100,7 +96,8 @@ const ProcessPage: React.FC = () => {
   const photoSheetGeneratorRef = useRef<PhotoSheetGeneratorRef>(null);
 
   // Add this state variable to store the recommended settings
-  const [recommendedSettings, setRecommendedSettings] = useState<EnhanceOptions | null>(null);
+  const [recommendedSettings, setRecommendedSettings] =
+    useState<EnhanceOptions | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
 
   // =======================================================================
@@ -163,17 +160,31 @@ const ProcessPage: React.FC = () => {
     setIsProcessing(true);
     try {
       // First get transparent version (this runs ML once)
-      const transparentVersion = await fetch(`http://localhost:8080/process-transparent`, {
-        method: "POST",
-        body: await (async () => {
-          const formData = new FormData();
-          formData.append("image", await imageProcessingService.dataURLtoFile(uploadedImage, "image.png"));
-          return formData;
-        })()
-      }).then(res => res.blob()).then(blob => URL.createObjectURL(blob));
+      const transparentVersion = await fetch(
+        `http://localhost:8080/process-transparent`,
+        {
+          method: "POST",
+          body: await (async () => {
+            const formData = new FormData();
+            formData.append(
+              "image",
+              await imageProcessingService.dataURLtoFile(
+                uploadedImage,
+                "image.png"
+              )
+            );
+            return formData;
+          })(),
+        }
+      )
+        .then((res) => res.blob())
+        .then((blob) => URL.createObjectURL(blob));
 
       // Store transparent version
-      setStepImages(prev => ({ ...prev, "2-transparent": transparentVersion }));
+      setStepImages((prev) => ({
+        ...prev,
+        "2-transparent": transparentVersion,
+      }));
 
       // Now apply background client-side (no ML needed)
       let coloredVersion;
@@ -194,7 +205,7 @@ const ProcessPage: React.FC = () => {
 
       // Update UI with colored version
       setProcessedImage(coloredVersion);
-      setStepImages(prev => ({ ...prev, 2: coloredVersion }));
+      setStepImages((prev) => ({ ...prev, 2: coloredVersion }));
 
       // Rest of your code...
     } catch (error) {
@@ -226,8 +237,14 @@ const ProcessPage: React.FC = () => {
     setIsProcessing(true);
     try {
       // Crop both versions
-      const croppedImage = await imageProcessingService.cropImage(sourceImage, cropArea);
-      const croppedTransparent = await imageProcessingService.cropImage(transparentSource, cropArea);
+      const croppedImage = await imageProcessingService.cropImage(
+        sourceImage,
+        cropArea
+      );
+      const croppedTransparent = await imageProcessingService.cropImage(
+        transparentSource,
+        cropArea
+      );
 
       setProcessedImage(croppedImage);
 
@@ -235,7 +252,7 @@ const ProcessPage: React.FC = () => {
       setStepImages((prev) => ({
         ...prev,
         3: croppedImage,
-        "3-transparent": croppedTransparent
+        "3-transparent": croppedTransparent,
       }));
 
       // Add to history
@@ -334,7 +351,7 @@ const ProcessPage: React.FC = () => {
           setStepImages((prev) => ({
             ...prev,
             4: colored,
-            "4-transparent": enhancedTransparent
+            "4-transparent": enhancedTransparent,
           }));
 
           // Add to history
@@ -361,7 +378,7 @@ const ProcessPage: React.FC = () => {
         reapplyBackgroundPromise = Promise.resolve(transparentSource);
       } else if (background.type === "image" && background.value) {
         reapplyBackgroundPromise = imageProcessingService.applyBackgroundImage(
-          transparentSource, 
+          transparentSource,
           background.value
         );
       } else {
@@ -371,27 +388,29 @@ const ProcessPage: React.FC = () => {
         );
       }
 
-      reapplyBackgroundPromise.then(coloredReset => {
-        setProcessedImage(coloredReset);
+      reapplyBackgroundPromise
+        .then((coloredReset) => {
+          setProcessedImage(coloredReset);
 
-        // Store the reset image with background for step 4
-        setStepImages((prev) => ({
-          ...prev,
-          4: coloredReset,
-          "4-transparent": transparentSource
-        }));
+          // Store the reset image with background for step 4
+          setStepImages((prev) => ({
+            ...prev,
+            4: coloredReset,
+            "4-transparent": transparentSource,
+          }));
 
-        // Add to history
-        const newHistory = history.slice(0, historyIndex + 1);
-        newHistory.push(coloredReset);
-        setHistory(newHistory);
-        setHistoryIndex(newHistory.length - 1);
+          // Add to history
+          const newHistory = history.slice(0, historyIndex + 1);
+          newHistory.push(coloredReset);
+          setHistory(newHistory);
+          setHistoryIndex(newHistory.length - 1);
 
-        setIsProcessing(false);
-      }).catch(error => {
-        console.error("Error applying background during reset:", error);
-        setIsProcessing(false);
-      });
+          setIsProcessing(false);
+        })
+        .catch((error) => {
+          console.error("Error applying background during reset:", error);
+          setIsProcessing(false);
+        });
 
       // Clear the timer since we're handling it separately
       if (debounceTimer.current !== null) {
@@ -409,20 +428,19 @@ const ProcessPage: React.FC = () => {
       checkCompliance();
     }
   }, [step, processedImage]);
-  
 
   const checkCompliance = async () => {
     if (!processedImage) return;
-  
-    const blob = await fetch(processedImage).then(res => res.blob());
+
+    const blob = await fetch(processedImage).then((res) => res.blob());
     const formData = new FormData();
     formData.append("file", blob, "id-photo.png");
-  
+
     const response = await fetch("http://localhost:8080/api/compliance/check", {
       method: "POST",
       body: formData,
     });
-  
+
     const result = await response.json();
     setComplianceResult({
       isCompliant: result.compliant,
@@ -434,25 +452,21 @@ const ProcessPage: React.FC = () => {
       ].filter(Boolean),
     });
   };
-  
+
   // const checkCompliance = async () => {
   //   const blob = await fetch(processedImage).then(res => res.blob());
   //   const formData = new FormData();
   //   formData.append("file", blob, "id-photo.png");
-  
+
   //   const response = await fetch("http://localhost:8080/api/compliance/check", {
   //     method: "POST",
   //     body: formData,
   //   });
 
-    
-  
   //   const result = await response.json();
   //   setComplianceResult(result);
   // };
 
-  
-  
   // const checkCompliance = async () => {
   //   if (!processedImage) return;
 
@@ -468,8 +482,6 @@ const ProcessPage: React.FC = () => {
   //     setIsProcessing(false);
   //   }
   // };
-
-  
 
   // const downloadImage = () => {
   //   if (!processedImage) return;
@@ -551,9 +563,9 @@ const ProcessPage: React.FC = () => {
     setStep(step - 1);
   };
 
-
   // Create a handler function for the PhotoSheetGenerator
   const handleSheetImageGenerated = (generatedImage: string) => {
+    console.log("Image generated - updating sheet image");
     setSheetImage(generatedImage);
   };
 
@@ -739,6 +751,8 @@ const ProcessPage: React.FC = () => {
                       src={sheetImage || processedImage || ""}
                       alt="Processed"
                       className="w-full h-auto"
+                      // Add a key to force re-render when image changes
+                      key={sheetImage || processedImage || "no-image"}
                     />
                   </div>
                 )}
@@ -776,18 +790,20 @@ const ProcessPage: React.FC = () => {
                   className="flex flex-col items-center flex-1"
                 >
                   <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center ${stepNumber === step
+                    className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      stepNumber === step
                         ? "bg-indigo-600 text-white"
                         : stepNumber < step
-                          ? "bg-indigo-200 text-indigo-700"
-                          : "bg-gray-200 text-gray-500"
-                      }`}
+                        ? "bg-indigo-200 text-indigo-700"
+                        : "bg-gray-200 text-gray-500"
+                    }`}
                   >
                     {stepNumber < step ? <Check size={18} /> : stepNumber}
                   </div>
                   <div
-                    className={`h-1 w-full mt-4 ${stepNumber < step ? "bg-indigo-400" : "bg-gray-200"
-                      }`}
+                    className={`h-1 w-full mt-4 ${
+                      stepNumber < step ? "bg-indigo-400" : "bg-gray-200"
+                    }`}
                   />
                 </div>
               ))}
@@ -806,7 +822,7 @@ const ProcessPage: React.FC = () => {
                 disabled={isProcessing}
               >
                 <ArrowLeft size={18} className="mr-2" />
-                Undo
+                Previous
               </button>
 
               {step < 5 ? (
