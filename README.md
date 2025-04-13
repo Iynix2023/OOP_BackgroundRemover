@@ -51,3 +51,4 @@ mvn spring-boot:run
 - ID Compliance Checker
 
 For google drive integration, only smu accounts is allowed due to google's restriction
+For Testing purpose, zhiyuanzhang@smu.edu.sg for google drive integration
