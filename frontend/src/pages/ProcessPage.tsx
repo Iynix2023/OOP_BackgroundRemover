@@ -36,23 +36,9 @@ import { uploadToCloud } from "../services/cloudUploadService";
 
 import { ToastContainer, toast } from "react-toastify";
 
-// useEffect(() => {
-//   const params = new URLSearchParams(window.location.search);
-//   if (params.get("authorized") === "true") {
-//     alert("Authorization successful! You can now upload to cloud.");
-//     // You could even trigger an auto-upload here if desired
-//   }
-// }, []);
 
-function base64ToBlob(base64: string, mime: string) {
-  const byteString = atob(base64.split(",")[1]);
-  const arrayBuffer = new ArrayBuffer(byteString.length);
-  const intArray = new Uint8Array(arrayBuffer);
-  for (let i = 0; i < byteString.length; i++) {
-    intArray[i] = byteString.charCodeAt(i);
-  }
-  return new Blob([intArray], { type: mime });
-}
+
+
 
 const ProcessPage: React.FC = () => {
   const navigate = useNavigate();
@@ -418,21 +404,72 @@ const ProcessPage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (step === 5 && processedImage) {
+      checkCompliance();
+    }
+  }, [step, processedImage]);
+  
+
   const checkCompliance = async () => {
     if (!processedImage) return;
-
-    setIsProcessing(true);
-    try {
-      const result = await imageProcessingService.checkCompliance(
-        processedImage
-      );
-      setComplianceResult(result);
-    } catch (error) {
-      console.error("Error checking compliance:", error);
-    } finally {
-      setIsProcessing(false);
-    }
+  
+    const blob = await fetch(processedImage).then(res => res.blob());
+    const formData = new FormData();
+    formData.append("file", blob, "id-photo.png");
+  
+    const response = await fetch("http://localhost:8080/api/compliance/check", {
+      method: "POST",
+      body: formData,
+    });
+  
+    const result = await response.json();
+    setComplianceResult({
+      isCompliant: result.compliant,
+      issues: [
+        !result.faceDetected && "No face detected",
+        !result.faceSizeOk && "Face size is not within required range",
+        !result.faceCentered && "Face is not horizontally centered",
+        !result.uniformBackground && "Background is not uniform",
+      ].filter(Boolean),
+    });
   };
+  
+  // const checkCompliance = async () => {
+  //   const blob = await fetch(processedImage).then(res => res.blob());
+  //   const formData = new FormData();
+  //   formData.append("file", blob, "id-photo.png");
+  
+  //   const response = await fetch("http://localhost:8080/api/compliance/check", {
+  //     method: "POST",
+  //     body: formData,
+  //   });
+
+    
+  
+  //   const result = await response.json();
+  //   setComplianceResult(result);
+  // };
+
+  
+  
+  // const checkCompliance = async () => {
+  //   if (!processedImage) return;
+
+  //   setIsProcessing(true);
+  //   try {
+  //     const result = await imageProcessingService.checkCompliance(
+  //       processedImage
+  //     );
+  //     setComplianceResult(result);
+  //   } catch (error) {
+  //     console.error("Error checking compliance:", error);
+  //   } finally {
+  //     setIsProcessing(false);
+  //   }
+  // };
+
+  
 
   // const downloadImage = () => {
   //   if (!processedImage) return;
@@ -514,127 +551,6 @@ const ProcessPage: React.FC = () => {
     setStep(step - 1);
   };
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const authorized = params.get("authorized");
-
-    if (authorized === "true") {
-      const base64Image = localStorage.getItem("imageToUpload");
-
-      if (base64Image) {
-        const blob = base64ToBlob(base64Image, "image/png");
-
-        const formData = new FormData();
-        formData.append("file", blob, "id-photo.png");
-        formData.append("description", "Uploaded from ID Photo Processor");
-
-        fetch("http://localhost:8080/upload", {
-          method: "POST",
-          body: formData,
-        })
-          .then(async (res) => {
-            const result = await res.json();
-            if (res.ok) {
-              toast.success(
-                <>
-                  ✅ Uploaded: <strong>{result.fileName}</strong> <br />
-                  <a
-                    href={result.driveUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline text-blue-400"
-                  >
-                    Open in Google Drive
-                  </a>
-                </>
-              );
-              localStorage.removeItem("imageToUpload");
-        
-              // Optional redirect to file (after delay)
-              setTimeout(() => {
-                window.open(result.driveUrl, "_blank");
-              }, 5000);
-            } else {
-              toast.error(result.error || "Upload failed");
-            }
-          })
-          .catch((err) => {
-            toast.error("Upload error: " + err.message);
-          });
-        
-    
-        // fetch("http://localhost:8080/upload", {
-        //   method: "POST",
-        //   body: formData,
-        // })
-        //   .then((res) => {
-        //     if (res.ok) {
-
-        //       localStorage.removeItem("imageToUpload");
-
-        //       // OPTIONAL: parse JSON with file metadata
-        //       const { fileName, driveUrl } = await res.json(); // <-- see backend below
-
-        //       toast.success(
-        //         <>
-        //           ✅ Image uploaded! <br />
-        //           <a href={driveUrl} target="_blank" rel="noopener noreferrer" className="underline text-blue-400">
-        //             Open in Google Drive
-        //           </a>
-        //         </>
-        //       );
-
-        //       // Optional: redirect after 5s
-        //       setTimeout(() => {
-        //         window.location.href = driveUrl;
-        //       }, 5000);
-        //     } else {
-        //       toast.error("Upload failed 😞");
-        //     }
-        //   })
-        //   .catch((err) => {
-        //     toast.error("Upload error: " + err.message);
-        //   });
-      } else {
-        toast.info("You're authorized, but no image found.");
-      }
-
-      //         alert("Image uploaded to Google Drive successfully!");
-      //         localStorage.removeItem("imageToUpload");
-      //       } else {
-      //         alert("Upload failed");
-      //       }
-      //     })
-      //     .catch((err) => {
-      //       alert("Upload error: " + err.message);
-      //     });
-      // } else {
-      //   alert("You're authorized, but there's no image to upload.");
-      // }
-
-
-      // Clean up the URL
-      const url = new URL(window.location.href);
-      url.searchParams.delete("authorized");
-      window.history.replaceState({}, document.title, url.toString());
-    }
-  }, []);  
-  
-  //   if (authorized === "true") {
-  //     if (processedImage) {
-  //       uploadToCloud(processedImage)
-  //         .then((msg) => alert("Upload successful: " + msg))
-  //         .catch((err) => alert("Upload failed: " + err.message));
-  //     } else {
-  //       alert("You're authorized, but there's no image to upload.");
-  //     }
-
-  //     // Optional: Clean up the URL to remove ?authorized=true
-  //     const url = new URL(window.location.href);
-  //     url.searchParams.delete("authorized");
-  //     window.history.replaceState({}, document.title, url.toString());
-  //   }
-  // }, [processedImage]);
 
   // Create a handler function for the PhotoSheetGenerator
   const handleSheetImageGenerated = (generatedImage: string) => {
@@ -927,8 +843,8 @@ const ProcessPage: React.FC = () => {
 
       <Footer />
 
-      <ToastContainer
-        position="bottom-right"
+      {/* <ToastContainer
+        position="top-center"
         autoClose={5000}
         hideProgressBar={false}
         newestOnTop={false}
@@ -937,7 +853,9 @@ const ProcessPage: React.FC = () => {
         draggable
         pauseOnHover
         theme="light"
-      />
+        toastClassName="text-lg text-gray-800 font-semibold shadow-lg rounded-xl px-6 py-4"
+        bodyClassName="flex justify-center items-center text-center"
+      /> */}
     </div>
   );
 };

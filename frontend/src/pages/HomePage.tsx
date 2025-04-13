@@ -4,7 +4,179 @@ import { Camera, Layers, UploadCloud as CloudUpload } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
+import { useEffect } from "react";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+
+function base64ToBlob(base64: string, mime: string) {
+  const byteString = atob(base64.split(",")[1]);
+  const arrayBuffer = new ArrayBuffer(byteString.length);
+  const intArray = new Uint8Array(arrayBuffer);
+  for (let i = 0; i < byteString.length; i++) {
+    intArray[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([intArray], { type: mime });
+}
+
+
+
+
 const HomePage: React.FC = () => {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const authorized = params.get("authorized");
+  
+    if (authorized === "true") {
+      const base64Image = localStorage.getItem("imageToUpload");
+  
+      if (base64Image) {
+        const blob = base64ToBlob(base64Image, "image/png");
+  
+        const formData = new FormData();
+        formData.append("file", blob, "id-photo.png");
+        formData.append("description", "Uploaded from ID Photo Processor");
+  
+        fetch("http://localhost:8080/upload", {
+          method: "POST",
+          body: formData,
+        })
+          .then(async (res) => {
+            const result = await res.json();
+            if (res.ok) {
+              toast.success(
+                <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                  <div style={{ fontSize: "1.6rem", fontWeight: "700", color: "#065f46" }}>
+                    ✅ Upload Successful!
+                  </div>
+              
+                  <div style={{ fontSize: "1.2rem", color: "#333" }}>
+                    File name: <strong>{result.fileName}</strong>
+                  </div>
+              
+                  <div>
+                    <a
+                      href={result.driveUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: "0.6rem 1.2rem",
+                        fontSize: "1rem",
+                        textDecoration: "none",
+                        backgroundColor: "#0d9488",
+                        color: "#fff",
+                        borderRadius: "6px",
+                        display: "inline-block",
+                        fontWeight: 500,
+                      }}
+                    >
+                      📂 Open in Google Drive
+                    </a>
+                  </div>
+                </div>
+              );
+
+              // toast.success(
+              //   <div>
+              //     <div style={{ fontSize: "1.4rem", marginBottom: "0.5rem" }}>✅ Uploaded!</div>
+              //     <div style={{ fontWeight: 700 }}>{result.fileName}</div>
+              //     <a
+              //       href={result.driveUrl}
+              //       target="_blank"
+              //       rel="noopener noreferrer"
+              //       style={{
+              //         marginTop: "0.75rem",
+              //         fontSize: "1rem",
+              //         textDecoration: "underline",
+              //         color: "#0d9488"
+              //       }}
+              //     >
+              //       Open in Google Drive
+              //     </a>
+              //   </div>
+              // );
+              
+              // toast.success(
+              //   <>
+              //     <div className="text-lg font-semibold">✅ Uploaded: <strong>{result.fileName}</strong></div>
+              //     <div className="mt-2">
+              //       <a
+              //         href={result.driveUrl}
+              //         target="_blank"
+              //         rel="noopener noreferrer"
+              //         className="underline text-blue-500 text-base"
+              //         style={{
+              //           color: "#2563eb",
+              //           textDecoration: "underline",
+              //           fontWeight: 600,
+              //           marginTop: "0.5rem",
+              //           display: "inline-block"
+              //         }}
+              //       >
+              //         🔗 Open in Google Drive
+              //       </a>
+              //     </div>
+              //   </>,
+              //   {
+              //     style: {
+              //       fontSize: "16px",
+              //       padding: "16px",
+              //       lineHeight: "1.6",
+              //       textAlign: "center",
+              //       minWidth: "300px",
+              //     },
+              //     position: "top-center", // optional if you want it centered
+              //   }
+              // );
+              // toast.success(
+              //   <>
+              //     ✅ Uploaded: <strong>{result.fileName}</strong> <br />
+              //     <a
+              //       href={result.driveUrl}
+              //       target="_blank"
+              //       rel="noopener noreferrer"
+              //       className="underline text-blue-400"
+              //     >
+              //       Open in Google Drive
+              //     </a>
+              //   </>,
+              //   {
+              //     position: "top-center", // Centered
+              //     autoClose: 6000,
+              //     style: { fontSize: "1.1rem" },
+              //   }
+              // );
+              localStorage.removeItem("imageToUpload");
+  
+              // Optional redirect to Drive after upload
+              setTimeout(() => {
+                window.open(result.driveUrl, "_blank");
+              }, 4000);
+            } else {
+              toast.error(result.error || "Upload failed", {
+                position: "top-center",
+                style: { fontSize: "1.1rem" },
+              });
+            }
+          })
+          .catch((err) => {
+            toast.error("Upload error: " + err.message, {
+              position: "top-center",
+              style: { fontSize: "1.1rem" },
+            });
+          });
+  
+        // ✅ Clean up the URL
+        const url = new URL(window.location.href);
+        url.searchParams.delete("authorized");
+        window.history.replaceState({}, document.title, url.toString());
+      } else {
+        toast.info("You're authorized, but no image found.", {
+          position: "top-center",
+          style: { fontSize: "1.1rem" },
+        });
+      }
+    }
+  }, []);
   const features = [
     {
       icon: <Camera className="h-8 w-8 text-indigo-600" />,
@@ -121,6 +293,22 @@ const HomePage: React.FC = () => {
       </main>
       
       <Footer />
+
+      <ToastContainer
+        position="top-center"
+        autoClose={6000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+        toastClassName="Toastify__toast"
+        bodyClassName="Toastify__toast-body"
+        // toastClassName="text-lg text-gray-800 font-semibold shadow-lg rounded-xl px-6 py-4"
+        // bodyClassName="flex justify-center items-center text-center"
+      />
     </div>
   );
 };

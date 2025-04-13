@@ -9,6 +9,8 @@ import { Download, RefreshCw } from "lucide-react";
 import SheetLayoutPreview from "./SheetLayoutPreview";
 import sheetGeneratorService from "../services/sheetGeneratorService";
 
+import { ToastContainer, toast } from "react-toastify";
+
 interface PhotoSheetGeneratorProps {
   processedImage: string | null;
   onImageGenerated?: (image: string) => void; // Add this prop
@@ -473,9 +475,70 @@ const PhotoSheetGenerator = forwardRef<
           </button>
           <button
             className="w-full flex items-center justify-center px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-700 transition-colors"
+            // onClick={() => {
+            //   alert("Save to Cloud functionality not implemented yet!");
+            // }}
+
             onClick={() => {
-              alert("Save to Cloud functionality not implemented yet!");
+              if (!sheetImage) {
+                toast.error("No image to upload.");
+                return;
+              }
+            
+              // Save to localStorage and redirect to start OAuth flow
+              localStorage.setItem("imageToUpload", sheetImage);
+              window.location.href = "http://localhost:8080/authorize";
             }}
+            
+
+
+
+            // onClick={async () => {
+            //   if (!sheetImage) return;
+            
+            //   try {
+            //     // Convert base64 to Blob
+            //     const blob = await (await fetch(sheetImage)).blob();
+            
+            //     const formData = new FormData();
+            //     formData.append("file", blob, "id-photo-sheet.png");
+            //     formData.append("description", "Generated from ID Photo Processor");
+            
+            //     const res = await fetch("http://localhost:8080/upload", {
+            //       method: "POST",
+            //       body: formData,
+            //     });
+            
+            //     const result = await res.json();
+            
+            //     if (res.ok) {
+            //       // Show toast with drive link
+            //       toast.success(
+            //         <>
+            //           ✅ Uploaded: <strong>{result.fileName}</strong> <br />
+            //           <a
+            //             href={result.driveUrl}
+            //             target="_blank"
+            //             rel="noopener noreferrer"
+            //             className="underline text-blue-400"
+            //           >
+            //             Open in Google Drive
+            //           </a>
+            //         </>
+            //       );
+            
+            //       // Optionally open file after a short delay
+            //       setTimeout(() => {
+            //         window.open(result.driveUrl, "_blank");
+            //       }, 4000);
+            //     } else {
+            //       toast.error(result.error || "Upload failed");
+            //     }
+            //   } catch (err: any) {
+            //     toast.error("Upload error: " + err.message);
+            //   }
+            // }}
+            
           >
             Save to Cloud
           </button>

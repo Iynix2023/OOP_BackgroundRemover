@@ -69,3 +69,9 @@ export interface ExportOptions {
   size: ExportSize;
   layout: ExportLayout;
 }
+
+export interface ComplianceResult {
+  isCompliant: boolean;
+  issues: string[];
+}
+

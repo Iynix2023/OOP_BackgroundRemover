@@ -109,6 +109,14 @@
             <optional>true</optional>
         </dependency>
 
+		<!-- OpenCV binding (via bytedeco) -->
+		<dependency>
+  			<groupId>org.bytedeco</groupId>
+  			<artifactId>opencv-platform</artifactId>
+  			<version>4.5.5-1.5.7</version>
+		</dependency>
+
+
 
 
 	</dependencies>

@@ -186,7 +186,7 @@ public class GoogleDriveController {
                 .execute();
         Credential credential = authorizationCodeFlow.createAndStoreCredential(response, "user");
 
-        return "redirect:http://localhost:5173/process?authorized=true";
+        return "redirect:http://localhost:5173/?authorized=true";
     }
 
 
