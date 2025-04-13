@@ -44,7 +44,7 @@ public class ComplianceCheckerService {
 
         // Criteria
         boolean faceDetected = true;
-        boolean sizeOk = faceHeight > 0.5 * imgHeight && faceHeight < 0.9 * imgHeight;
+        boolean sizeOk = faceHeight > 0.425 * imgHeight && faceHeight < 0.9 * imgHeight;
         boolean centered = faceCenterX > 0.4 * imgWidth && faceCenterX < 0.6 * imgWidth;
         boolean uniformBg = isBackgroundUniform(image, face);
 
