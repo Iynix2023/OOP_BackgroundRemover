@@ -1,5 +1,5 @@
 
-##SnapForm
+##BGone
 
 The project features:
 - ✂️ Background removal using DJL (Deep Java Library) with PyTorch and DeepLabV3.
